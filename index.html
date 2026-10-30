@@ -27,8 +27,8 @@
     <label class="slider-row">Rotate Y <output id="rotVal">0°</output><input id="surfaceRot" type="range" min="-180" max="180" value="0" step="5" /></label>
     <label class="slider-row">Scale <output id="scaleVal">1.00×</output><input id="surfaceScale" type="range" min="0.65" max="1.30" value="1" step="0.05" /></label>
     <div class="segmented small"><button id="btnModeOrbit" class="active">◉ Orbit</button><button id="btnModeMove">↔ Move</button><button id="btnModeRotate">⟳ Rotate</button></div>
-    <p class="edit-hint" id="editModeHint">编辑阶段：可以 Move / Rotate 曲面。生成 Tilted 后自动进入只读查看。</p>
-    <button id="btnEditScene" class="action-soft" style="width:100%" hidden>✎ Edit scene · 修改曲面 / 路径</button>
+    <p class="edit-hint" id="editModeHint">随时可调整：Orbit 只改视角；Move / Rotate 改曲面；3D edit 拖动技能控制点，生成后仍自动更新。</p>
+    
   </section>
   <section class="card"><div class="card-title"><b class="step">02</b><h3>Guide <small>曲面上的摆放路径</small></h3></div>
     <p class="helper">黄色 Guide 来自切割平面与 Surface 的交线；也可以手绘左右偏移的 Guide。它不是 Nominal Skill。</p>
@@ -47,7 +47,8 @@
       <button id="btnImportCSV" class="action-soft fullwidth">↑ Import Nominal CSV</button>
       <a class="sample-link" href="./examples/nominal_3d_spiral.csv" download>↓ Download CSV format example</a>
       <label class="slider-row">Repeat on guide <output id="repeatsVal">3</output><input id="repeats" type="range" min="1" max="6" value="3" step="1" /></label>
-      <p class="edit-hint" id="skillEditHint">按 3D edit 后，在 3D 场景拖动白色控制点改变高度/侧向；拖动空白处旋转视角。起点和终点固定。</p>
+      <label class="slider-row">Brush curve tension <output id="brushTensionVal">0.35</output><input id="brushTension" type="range" min="0" max="1" value="0.35" step="0.05" /></label>
+      <p class="edit-hint" id="skillEditHint">每个重复段只有 3 个白色控制点（1/4、1/2、3/4），它们编辑同一个 Nominal 技能；拖动后以 C¹ 平滑曲线更新所有重复段。两端接触点固定。</p>
     </div>
     <div id="contactSkillControls" hidden><p class="helper">Guide 就是 A0 的完整接触路径。可以手绘 Guide，也可以手绘 A1 的倾角变化（棒长始终固定）。</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
     <div class="skill-banner" id="nominalSummary">Nominal: 3D half-circle · endpoints contact</div>
@@ -74,6 +75,7 @@
    <div class="playback">
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
+      <div class="pose-selection-bar"><label class="check compact"><input id="showConic" type="checkbox" checked/> ◎ Show selected conic</label><label class="check compact"><input id="focusPose" type="checkbox" checked/> Focus one pose</label><span>Click a pose / rod in 3D to inspect its cone · β = <b id="coneBadge">40°</b></span></div>
       <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp 是单向外法线排斥 + 锥内姿态搜索 + 近似 Ribbon 的浏览器演示，不是 Python SPGA-M2 的完整力平衡求解器。</span></div>
    </div>
  </section>
@@ -88,6 +90,14 @@
       <div class="analysis-row"><span>Max axis adjustment</span><b id="metricAngle">—</b></div>
       <div id="metricHint" class="metric-hint">Generate Tilted, then Warp to see the difference.</div>
    </section>
+   <section class="card" id="poseInspector"><div class="section-head">SELECTED POSE <span class="micro" id="poseInspectIndex">—</span></div>
+      <p class="helper">在 3D 中点击任意棒子/轨迹点，或拖动播放条。蓝色锥体以 Tilted 方向为轴，半角 β 限制 Warp 方向。</p>
+      <div class="analysis-row"><span>Tool-axis change</span><b id="poseDelta">—</b></div>
+      <div class="analysis-row"><span>Penetration (Tilted → Warp)</span><b id="posePen">—</b></div>
+      <div class="analysis-row"><span>A1 displacement</span><b id="poseA1">—</b></div>
+      <p class="parameter-hint" id="sliderEffectHint">先生成 Tilted / Warp，再比较权重变化；有碰撞的 Pose 更容易看到差异。</p>
+      <div class="grid2"><button id="presetAvoid" class="action-soft">↑ Avoid collision</button><button id="presetPreserve" class="action-soft">⌁ Preserve skill</button></div>
+    </section>
    <section class="card balance-card">
      <div class="section-head">FORCE BALANCE <span class="micro">LIVE DEMO</span></div>
      <p class="helper">Geometry 向外排斥；Conic 把姿态拉回 Tilted 附近；Ribbon 抵抗相邻姿态与轨迹形变。下面权重会重新计算浏览器 Warp，<strong>不是 Python M2 的原始增益值</strong>。</p>
