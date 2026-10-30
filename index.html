@@ -15,7 +15,7 @@
 </header>
 <main class="app">
  <aside class="sidebar left">
-  <div class="side-title"><div class="eyebrow">WORKFLOW</div><h2>Build a skill</h2><p>Surface → Guide → Tilt → Warp</p></div>
+  <div class="side-title"><div class="eyebrow">WORKFLOW</div><h2>Build a skill</h2><p>Surface → Guide → Nominal → Tilted → Warp</p></div>
   <section class="card"><div class="card-title"><b class="step">01</b><h3>Surface <small>曲面</small></h3></div>
     <p class="helper">选择示例或手绘 2D 侧面轮廓，沿深度方向拉伸为 3D 曲面。</p>
     <div class="segmented" id="surfaceOptions"><button data-surface="hill" class="active">Hill</button><button data-surface="saddle">Saddle</button><button data-surface="profile">My 2D</button></div>
@@ -30,19 +30,33 @@
     <p class="edit-hint" id="editModeHint">编辑阶段：可以 Move / Rotate 曲面。生成 Tilted 后自动进入只读查看。</p>
     <button id="btnEditScene" class="action-soft" style="width:100%" hidden>✎ Edit scene · 修改曲面 / 路径</button>
   </section>
-  <section class="card"><div class="card-title"><b class="step">02</b><h3>Guide & Nominal <small>引导路径</small></h3></div>
-    <p class="helper">黄色实线 = Guide；白色虚线 = 手绘 Nominal 的 A0 接触路径（可在右侧图层显示）。两条线不需要重合。</p>
+  <section class="card"><div class="card-title"><b class="step">02</b><h3>Guide <small>曲面上的摆放路径</small></h3></div>
+    <p class="helper">黄色 Guide 来自切割平面与 Surface 的交线；也可以手绘左右偏移的 Guide。它不是 Nominal Skill。</p>
     <label class="slider-row">Cut angle <output id="cutAngleVal">0°</output><input id="cutAngle" type="range" min="-90" max="90" value="0" step="2" /></label>
     <label class="slider-row">Plane offset <output id="cutOffsetVal">0.00</output><input id="cutOffset" type="range" min="-1.8" max="1.8" value="0" step="0.05" /></label>
-    <label class="slider-row">Stroke width <output id="amplitudeVal">0.70</output><input id="strokeAmp" type="range" min="0" max="1.5" value="0.7" step="0.05" /></label>
-    <div class="grid2"><button id="btnGuide" class="action-soft">⊞ Select guide</button><button id="btnDrawTraj" class="action-soft">✎ Draw nominal</button></div>
-    <div class="stroke-thumbnail"><canvas id="smallStroke" width="292" height="70"></canvas><span>Nominal (2D)</span></div>
+    <label class="slider-row">Guide stroke width <output id="amplitudeVal">0.70</output><input id="strokeAmp" type="range" min="0" max="1.5" value="0.7" step="0.05" /></label>
+    <div class="grid2"><button id="btnGuide" class="action-soft">⊞ Select cut guide</button><button id="btnDrawGuide" class="action-soft">✎ Draw guide A0</button></div>
+    <div class="stroke-thumbnail"><canvas id="smallStroke" width="292" height="70"></canvas><span>Guide (2D offset)</span></div>
   </section>
-  <section class="card"><div class="card-title"><b class="step">03</b><h3>Tool & Warping <small>姿态变形</small></h3></div>
-    <p class="helper">A0 固定在接触路径上；棒长固定；Tilted 和 Warp 可对比播放。</p>
+  <section class="card"><div class="card-title"><b class="step">03</b><h3>Nominal Skill <small>A0 源轨迹</small></h3></div>
+    <p class="helper">与 Guide 独立。两端接触，中间可 lift；绘制是技能自身的空间形状，不是曲面轨迹。</p>
+    <div class="segmented" id="taskModes"><button data-task="skill" class="active">Lifted skill</button><button data-task="contact">All-contact</button></div>
+    <div id="liftSkillControls">
+      <div class="grid2"><button id="btnDrawTraj" class="action-soft">✎ Draw nominal</button><button id="btnNominal3D" class="action-soft">◇ 3D edit</button></div>
+      <div class="grid2 spaced"><button id="btnHalf" class="action-soft">⌒ Half-circle</button><button id="btnSpiral" class="action-soft">◎ 3D spiral</button></div>
+      <button id="btnImportCSV" class="action-soft fullwidth">↑ Import Nominal CSV</button>
+      <a class="sample-link" href="./examples/nominal_3d_spiral.csv" download>↓ Download CSV format example</a>
+      <label class="slider-row">Repeat on guide <output id="repeatsVal">3</output><input id="repeats" type="range" min="1" max="6" value="3" step="1" /></label>
+      <p class="edit-hint" id="skillEditHint">按 3D edit 后，在 3D 场景拖动白色控制点改变高度/侧向；拖动空白处旋转视角。起点和终点固定。</p>
+    </div>
+    <div id="contactSkillControls" hidden><p class="helper">Guide 就是 A0 的完整接触路径。可以手绘 Guide，也可以手绘 A1 的倾角变化（棒长始终固定）。</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
+    <div class="skill-banner" id="nominalSummary">Nominal: 3D half-circle · endpoints contact</div>
+  </section>
+  <section class="card"><div class="card-title"><b class="step">04</b><h3>Tool & Warping <small>姿态变形</small></h3></div>
+    <p class="helper">Lifted skill 仅锁定 Contact Mask 标记的 A0；All-contact 每个 A0 接触。棒长固定。</p>
     <label class="slider-row">Tool length <output id="lengthVal">1.20</output><input id="rodLength" type="range" min="0.4" max="2.1" value="1.2" step="0.05" /></label>
-    <p class="helper">Tilted 的方向沿 Guide 前进方向倾斜，不再随手绘横向摆动而乱转；Tilt angle 从表面法线测量（0° = 竖直于表面）。</p>
-    <label class="slider-row">Tilt angle <output id="tiltVal">65°</output><input id="tiltAngle" type="range" min="10" max="85" value="65" step="1" /></label>
+    <p class="helper">Tilted：每段 Nominal 整体统一旋转、平移及必要的统一缩放（Sim(3)）；不会逐点投影。Tilt angle 从切平面测量（0° = 沿切线）。</p>
+    <label class="slider-row">Tilt angle <output id="tiltVal">25°</output><input id="tiltAngle" type="range" min="5" max="85" value="25" step="1" /></label>
     <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="75" value="40" step="1" /></label>
     <label class="check"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
     <div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Warp ✦</button></div>
@@ -77,14 +91,14 @@
       <label class="layer"><span><i class="dot terrain"></i> Surface mesh</span><input id="layerSurface" type="checkbox" checked /></label>
       <label class="layer"><span><i class="dot plane"></i> Cutting plane</span><input id="layerPlane" type="checkbox" checked /></label>
       <label class="layer"><span><i class="dot guide"></i> Guide trajectory</span><input id="layerGuide" type="checkbox" checked /></label>
-      <label class="layer"><span><i class="dot nominal"></i> Nominal A0 (white dashed)</span><input id="layerNominal" type="checkbox" /></label>
+      <label class="layer"><span><i class="dot nominal"></i> Nominal / Tilted A0 (white)</span><input id="layerNominal" type="checkbox" checked /></label>
       <label class="layer"><span><i class="dot tilted"></i> Tilted tool</span><input id="layerTilt" type="checkbox" checked /></label>
       <label class="layer"><span><i class="dot warped"></i> Warped tool</span><input id="layerWarp" type="checkbox" checked /></label>
    </section>
    <section class="card insight"><div class="section-head">HOW IT WORKS</div>
       <div class="insight-step"><span>①</span><p><b>Sketch → surface</b><br/>把 2D 轮廓沿 Z 拉伸，或选择 Hill / Saddle。</p></div>
       <div class="insight-step"><span>②</span><p><b>Slice → guide</b><br/>调整切割平面以选择曲面接触引导线。</p></div>
-      <div class="insight-step"><span>③</span><p><b>Draw → tilt</b><br/>Nominal 沿 Guide 放置，生成棒状工具姿态。</p></div>
+      <div class="insight-step"><span>③</span><p><b>Nominal → Tilted</b><br/>绘制 2D/3D 技能，端点等距放置在 Guide；内部点保持相似形状，不贴表面。</p></div>
       <div class="insight-step"><span>④</span><p><b>Warp → compare</b><br/>保持 A0 与棒长，展示姿态修正和穿透差异。</p></div>
    </section>
    <div class="footnote">SPGA-M2 INSPIRED DEMONSTRATOR<br/>Client-side, static GitHub Pages compatible.</div>
@@ -98,7 +112,7 @@
     <div class="modal-footer"><span id="drawStatus">Drag to draw</span><div><button id="btnDrawClear" class="outline">Clear</button><button id="btnDrawDefault" class="outline">Example</button><button id="btnDrawApply" class="action-primary">Use this drawing →</button></div></div>
   </div>
 </div>
-<input id="fileImport" type="file" accept=".json" hidden>
+<input id="fileImport" type="file" accept=".csv,text/csv" hidden>
 <script type="module" src="./src/app.js"></script>
 </body>
 </html>
