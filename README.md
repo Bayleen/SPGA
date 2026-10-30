@@ -1,3 +1,13 @@
+## v1.1: Guide-aligned Tilted & view-only after generation
+
+- **White dashed line:** optional hand-drawn **Nominal A0 contact path**, offset laterally from the yellow **Guide**. It is hidden by default; turn on *Nominal A0 (white dashed)* in Visible Layers to inspect it.
+- **Tilted heading:** calculated from the *guide forward direction projected onto the local surface tangent plane*; previously the tool followed the derivative of each wiggly drawn stroke, causing erratic rod rotations. The angle is measured **from the surface normal**.
+- **View-only results:** after clicking *Generate Tilted* (or *Warp*), dragging orbits the camera; Shift+drag pans; scrolling zooms. All scene geometry, guide and tool parameters are locked to preserve the relationship between the curves and tools.
+- **Edit scene:** click the separate *Edit scene* button to unlock geometry and clear prior Tilted/Warped results before moving or rotating the surface or changing the paths.
+- Page starts with editable Hill+Guide (no pre-generated poses), so drawing tools work immediately.
+- Fixed a floating-point boundary tolerance in transformed heightfield meshes.
+- This remains a **browser geometry demonstrator**, not the research SPGA-M2 force-balance solver.
+
 # SPGA Interactive Pose Warping Lab
 
 An **interactive browser-only 3D demonstrator** built for GitHub Pages. Zero npm, backend, or CDN dependencies. All rendering and geometry calculation run in the browser (Canvas 2D software 3D renderer).
