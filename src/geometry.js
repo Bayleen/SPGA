@@ -291,6 +291,29 @@ export function sketchToSkill(raw,count=81){
   out[0]={u:0,v:0,w:0,contact:true};out[out.length-1]={u:1,v:0,w:0,contact:true};
   return out;
 }
+/** Three editable interior handles. A C1 cardinal-Hermite offset field preserves
+ * the existing stroke (including loops and spirals) while smoothly displacing it.
+ * Knots at 0, 1/4, 1/2, 3/4, 1: endpoints remain exact contacts.
+ * Brush tension 0 = rounder strokes, 1 = flatter at each handle.
+ */
+export function deformSkillWithHandles(base,handles=[{v:0,w:0},{v:0,w:0},{v:0,w:0}],tension=.35){
+  if(!base?.length)return [];
+  const knots=[{v:0,w:0},...handles.map(p=>({v:Number(p.v)||0,w:Number(p.w)||0})),{v:0,w:0}];
+  if(knots.length!==5)throw new Error('Exactly three interior handles required');
+  const a=clamp(1-tension,0,1);
+  const field=(x,dim)=>{
+    const q=clamp(x,0,1)*4,k=Math.min(3,Math.floor(q)),t=q-k;
+    const v=knots.map(p=>p[dim]);
+    const tangent=i=>i===0?0:i===4?0:a*(v[i+1]-v[i-1])*.5;
+    const y0=v[k],y1=v[k+1],m0=tangent(k),m1=tangent(k+1);
+    return (2*t**3-3*t*t+1)*y0+(t**3-2*t*t+t)*m0+(-2*t**3+3*t*t)*y1+(t**3-t*t)*m1;
+  };
+  return base.map((p,i)=>{
+    const u=i/Math.max(1,base.length-1);
+    return {...p,v:p.v+field(u,'v'),w:p.w+field(u,'w')};
+  });
+}
+
 export function makeSkillExample(type='half',count=81){
   return Array.from({length:count},(_,i)=>{
     const t=i/(count-1),theta=Math.PI*t;
