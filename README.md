@@ -59,3 +59,12 @@ For a public repository, select `Settings → Pages → Deploy from a branch →
 ## License
 
 See `LICENSE`.
+
+
+## v3 live tool / one-sided geometry (2026-10-30)
+
+After **Generate Tilted**, surface/guide/nominal are frozen; tool length and surface-relative angle (0–180°) remain editable and recompute Tilted/previous Warp immediately. `0°=forward tangent`, `90°=outward normal`, `180°=backward tangent`. For imported CSV tool axes, the angle slider applies a common offset from its reference `25°`.
+
+The right panel exposes **browser-demo weights** for geometry, conic, ribbon tension and bending and a cone half-angle; these coefficients are *not* the calibrated Python SPGA-M2 coefficients. Browser warp still uses independent candidate pose search, with predecessor-based ribbon-like scoring, and separate optional A0 lift for noncontact poses. It is **not** the full M2 dual-rail force-balance algorithm. Surface signed-height is a one-sided height-field approximation: negative points are treated as penetration and outward normals always point above the surface. No underside/second-sided normal is used.
+
+The demo's penetration term increases quadratically with depth. It is stronger for deeper penetration, but cone and ribbon penalties mean complete removal is not mathematically guaranteed.
