@@ -1,77 +1,61 @@
-## v1.1: Guide-aligned Tilted & view-only after generation
+# SPGA Interactive Web Lab — v2 (Guide / Nominal / Tilted separated)
 
-- **White dashed line:** optional hand-drawn **Nominal A0 contact path**, offset laterally from the yellow **Guide**. It is hidden by default; turn on *Nominal A0 (white dashed)* in Visible Layers to inspect it.
-- **Tilted heading:** calculated from the *guide forward direction projected onto the local surface tangent plane*; previously the tool followed the derivative of each wiggly drawn stroke, causing erratic rod rotations. The angle is measured **from the surface normal**.
-- **View-only results:** after clicking *Generate Tilted* (or *Warp*), dragging orbits the camera; Shift+drag pans; scrolling zooms. All scene geometry, guide and tool parameters are locked to preserve the relationship between the curves and tools.
-- **Edit scene:** click the separate *Edit scene* button to unlock geometry and clear prior Tilted/Warped results before moving or rotating the surface or changing the paths.
-- Page starts with editable Hill+Guide (no pre-generated poses), so drawing tools work immediately.
-- Fixed a floating-point boundary tolerance in transformed heightfield meshes.
-- This remains a **browser geometry demonstrator**, not the research SPGA-M2 force-balance solver.
+Browser-only 3D educational demonstrator for skill-preserving pose placement and collision-aware pose correction. Publishable on **GitHub Pages** (no Python server needed).
 
-# SPGA Interactive Pose Warping Lab
+## Critical semantics
 
-An **interactive browser-only 3D demonstrator** built for GitHub Pages. Zero npm, backend, or CDN dependencies. All rendering and geometry calculation run in the browser (Canvas 2D software 3D renderer).
+- **Surface:** Hill, Saddle, or a hand-drawn 2D height profile extruded into a 3D heightfield.
+- **Guide:** A surface-following curve from a vertical cutting plane; you can also hand-draw its lateral displacement. Guide is NOT the source skill.
+- **Nominal skill:** A0 positions along a learned/source shape (`u,v,w`), independent of the surface, with per-pose `contact` flags. A1 derives from A0 plus a fixed-length tool axis, not another copy of the guide.
+- **Tilted:** Each individual learned primitive is placed between two equal-arc-length guide anchors using **one global similarity transform per primitive** (rotation, translation, and one uniform scale to match guide chord length). Interior samples are NOT individually projected to the surface; the full shape is preserved up to that uniform scale. This matches the key *placement principle* of the SPGA Python code; it is not a complete SE(3) transfer implementation.
+- **Warp:** Browser-only approximate collision-aware orientation search. Marked A0 contact anchors are unchanged. Non-contact A0 may receive a limited lift if the rod still collides; length and cone are respected. **Not the archived SPGA-M2 force-balance / ribbon solver**. Do not use as validated research results.
 
-## Launch locally
+## Usage
 
-From the project root:
+1. Select a surface, move/rotate it (before generation).
+2. Adjust cutting plane and click **Select cut guide**, or choose **Draw guide A0** to draw an offset on that surface.
+3. Select **Lifted skill** (palpation/spiral) or **All-contact** (brushing).
+4. Lifted skill: click **Draw nominal** to sketch a 2D A0 path (START/END contact), then **3D edit** to orbit and drag white interior points in 3D (vertical and lateral). Drag the background to orbit; the two green contact feet are locked. **3D Spiral** preset generates a true 3D spiral-on-half-circle rather than an x-sorted wave.
+5. Optional: import a **CSV** containing canonical A0 positions; `examples/nominal_3d_spiral.csv` is downloadable directly from the page.
+6. Choose how many repeats to tile along the guide; each interval is spaced equally in **guide arc length**.
+7. Click **Generate Tilted**, then **Warp**; scrub/play and compare. Generated geometry is read-only; drag pans/orbits camera only. **Edit scene** unlocks and clears results.
+8. In **All-contact**, the complete guide is A0 contact; **Draw A1 orientation** changes the rod's angle along guide progress and maintains its fixed length.
 
-```bash
-python3 -m http.server 8000
+### CSV format
+
+UTF-8 comma-separated, with header, 3–3000 rows:
+
+```csv
+u,v,w,contact
+0,0,0,1
+0.25,0.30,0.15,0
+0.5,0.42,-0.12,0
+0.75,0.30,0.15,0
+1,0,0,1
 ```
 
-Open `http://localhost:8000`.
+- `u`: canonical displacement along the source skill's endpoint chord.
+- `v`: height/lift in the nominal sketch plane.
+- `w`: lateral 3D displacement (spiral and other non-planar skills).
+- `contact`: `1` for START/END only in Lifted skill mode; only endpoint anchors are supported in this placement version. Invalid intermediary contact flags are rejected rather than silently ignored.
+- Optional `ax,ay,az` gives a **per-pose unit tool axis in source u/v/w coordinates**, which is rotated during Tilted placement, not used as an A1 absolute point. Without it, a single tool tilt parameter controls the primitive.
+- All numeric coordinates are arbitrary canonical **display units**, not meters. A0 is the source trajectory, not a surface-following guide. Contact endpoints are always fixed.
+- Data is displayed **in row order**: repeated X, reversed segments, loops and coils are preserved. `u` need not be monotonic.
+- The source endpoint chord must be nonzero. Shape similarity includes uniform scale when target anchor chord differs from the source chord.
 
-## Publish a public GitHub Pages site
+## Engineering details
 
-1. Create a **public** GitHub repository, e.g. `spga-web-lab`.
-2. Upload **the contents** of this folder to the repository root (including `index.html`, `styles.css`, `src/`, `.nojekyll`).
-3. Go to **Settings → Pages → Build and deployment → Deploy from a branch**.
-4. Choose **main** and **/(root)**, then Save.
-5. After publication, the URL is `https://USERNAME.github.io/spga-web-lab/`.
+- Plain static ES modules: `src/geometry.js` contains geometry and browser solver, `src/app.js` contains editing/visualization.
+- Surface uses a height-field rendering and collision sampling (not exact arbitrary 3D mesh collision).
+- The stroke-to-skill conversion uses cumulative 3D arc length for resampling, not `x` sorting; freehand loops won't collapse into a wave.
+- Camera/geometry edit is explicitly locked after generating Tilted; only camera view changes until **Edit scene** is chosen.
+- Run `npm test` (Node 20+); no npm dependencies are needed.
+- External researchers should use the archived Python SPGA-M2 for formal evaluations; this site is for interaction and pedagogy.
 
-`index.html` contains only relative paths, so it works with repository Pages URLs. No extra server or build is needed.
+## GitHub Pages
 
-## How to use
+For a public repository, select `Settings → Pages → Deploy from a branch → main → / (root)`.
 
-1. Pick **Hill** or **Saddle**, or click **Draw 2D profile** to sketch a single-valued 2D height profile and extrude it along Z. Move and rotate with the sliders or with the `Move/Rotate` canvas mode. Orbit with drag, zoom with scroll.
-2. Set **Cut angle** and **Plane offset**; the visible vertical cutting plane intersects the terrain to create the **Guide trajectory**.
-3. **Draw nominal** is a left-to-right 2D drawing: horizontal position is progression along Guide, and vertical position is transverse offset. The 2D stroke is projected onto the current 3D terrain to create A0 contact points.
-4. Set **Tool length**, **Tilt angle** (tilt measured away from the local surface normal, toward the path tangent), and **Cone half-angle** (permitted rotation away from each tilted axis). Optional **Reverse tool direction**.
-5. **Generate Tilted** → **Warp**. Play or scrub the pose slider; Compare shows the two rods simultaneously. Collision samples are marked red on any displayed rod that intersects the terrain.
-6. **Export JSON** to save input parameters, curves, output A0/A1 poses, and demo metrics.
+## License
 
-## Important research distinction
-
-This is a **teaching / outreach / interaction prototype** and **NOT a numerical reproduction** of the locked `SPGA-M2-C0-Field-FIXED-2026-10-30` Python research solver. In particular:
-
-| Browser demo | Archived M2 solver |
-|---|---|
-| Procedural heightfield from 2D extrusion or Hill/Saddle | General mesh geometry with closest-triangle projection |
-| Smooth heightfield normal at surface | Area-weighted vertex normal barycentric interpolation on selected mesh triangle |
-| Rod sampled at 24 interior points; approximate signed-height clearance | Discrete active contact regions based on nearest-mesh signed distance |
-| Bounded angular search around tilted rod, favor clearance | Geometry/Conic/Ribbon pseudo-force equilibrium and Jacobian contact transfer |
-| A0 fixed; rod length fixed | A0 anchor; fixed-length projection; conic/ribbon forces and convergence rules |
-
-The demo preserves **A0** and **rod length** exactly; it searches for rod orientations within a maximum angle from the tilted pose and demonstrates collision avoidance. It is not the numerical SPGA force balance, does not preserve the full ribbon objective, and cannot guarantee full collision clearance or a globally smooth vector field. In particular, numerical values and success rates **must not** be used as paper experiments.
-
-The procedure can be upgraded to real SPGA-M2 with a Python service/API running `spga/warping.py`, but GitHub Pages alone cannot execute the original Python dependencies server-side. An alternative is a full, tested JS/WASM reimplementation.
-
-## Geometry and scope limits
-
-- User-drawn surfaces are **2.5D height profiles** (single height per local X) extruded along Z, not arbitrary closed solids.
-- Hill/Saddle are heightfields (single height per X,Z), not manifold self-intersecting meshes.
-- Intersection and penetration are vertical-height based approximations; there is no continuous rod-vs-triangle collision or articulated robot checking.
-- The `angle` for the browser tilt is a user-friendly visual parameter, not the full SPGA nominal skill/conic parameterization.
-- 1 world unit is arbitrary; exported units are clearly identified and **not millimeters**.
-- Users can run the public GitHub Pages site on their own computer without sharing drawings on a server; exported data is downloaded locally.
-
-## Files
-
-- `index.html` — responsive studio UI
-- `styles.css` — layout and theme
-- `src/geometry.js` — deterministic geometry & demonstration solver
-- `src/app.js` — canvas 3D scene, drawing modal, sliders, animation & export
-- `tests/geometry.test.mjs` — Node unit tests for geometry and pose constraints
-
-License: MIT (see LICENSE).
+See `LICENSE`.
