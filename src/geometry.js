@@ -80,7 +80,7 @@ export function sampleSurface(state,x,z){
   const c=Math.cos(rad(rotation)),s=Math.sin(rad(rotation));
   const xx=x-offsetX, zz=z-offsetZ;
   const lx=(c*xx+s*zz)/scale, lz=(-s*xx+c*zz)/scale;
-  if(Math.abs(lx)>3||Math.abs(lz)>3)return null;
+  if(Math.abs(lx)>3+1e-8||Math.abs(lz)>3+1e-8)return null;
   const hh=terrainHeight(type,lx,lz,profile);
   const d=.014;
   const hx=(terrainHeight(type,lx+d,lz,profile)-terrainHeight(type,lx-d,lz,profile))/(2*d);
@@ -130,13 +130,21 @@ export function makeContactPath(state,stroke,angle,offset,count=67,amplitude=1){
   }
   return out;
 }
-export function makeTilted(contacts,length,tiltDeg,reverse=false){
-  return contacts.map((c,i)=>{
-    const before=contacts[Math.max(0,i-1)].point,after=contacts[Math.min(i+1,contacts.length-1)].point;
-    let t=norm(sub(after,before));
-    t=norm(sub(t,mul(c.normal,dot(t,c.normal))));
-    if(reverse)t=mul(t,-1);
-    const axis=norm(add(mul(c.normal,Math.cos(rad(tiltDeg))),mul(t,Math.sin(rad(tiltDeg)))));
+/**
+ * Nominal tilted tool: its in-surface lean follows the *guide* forward axis,
+ * NOT the derivative of the user's lateral freehand stroke.  This prevents
+ * large tool-heading swings when the nominal stroke wiggles or turns sharply.
+ * tiltDeg is measured from the local surface normal (0° = normal).
+ */
+export function makeTilted(contacts,length,tiltDeg,reverse=false,guideAngleDeg=0){
+  const a=rad(guideAngleDeg);
+  const forward=V(Math.cos(a),0,Math.sin(a));
+  return contacts.map(c=>{
+    // Keep the chosen guide direction tangent to the surface at each A0.
+    const projected=sub(forward,mul(c.normal,dot(forward,c.normal)));
+    let tangent=norm(projected);
+    if(reverse)tangent=mul(tangent,-1);
+    const axis=norm(add(mul(c.normal,Math.cos(rad(tiltDeg))),mul(tangent,Math.sin(rad(tiltDeg)))));
     return {a0:c.point,axis,a1:add(c.point,mul(axis,length)),normal:c.normal,guide:c.nominalProgress};
   });
 }
