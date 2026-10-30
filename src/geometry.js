@@ -162,43 +162,87 @@ export function rodMetrics(pose,state,length=1){
   }
   return {minClearance,penetration,active,collides:penetration>0.004};
 }
-export function warpDemo(poses,state,length,betaDeg){
-  const beta=rad(betaDeg),N=poses.length;
-  const warped=[];
+/** One-sided demo correction, intentionally not the archived SPGA-M2 solver.
+ * Uses only the positive (outward) normal; deeper negative clearance receives
+ * a larger quadratic penalty. Each candidate must be an outward adjustment
+ * relative to the tilted axis. Geometry / cone / ribbon sliders affect the
+ * actual browser objective. A0 of contact poses is never modified.
+ */
+export function warpDemo(poses,state,length,betaDeg,weights={}){
+  const beta=rad(betaDeg),N=poses.length,warped=[];
+  const wg=clamp(Number(weights.geometry??1),.01,6);
+  const wc=clamp(Number(weights.conic??1),0,6);
+  const wt=clamp(Number(weights.tension??.6),0,6);
+  const wb=clamp(Number(weights.bending??.35),0,6);
+  const safeAngle=(a,b)=>Math.acos(clamp(dot(a,b),-1,1));
   let failure=0;
-  // Independent pose search, constrained to a cone centered at each tilted pose.
-  // Preserve A0 and rod length exactly. This is an interactive approximation,
-  // NOT the M2 active-contact + conic + ribbon force-balance algorithm.
   for(let j=0;j<N;j++){
-    const p=poses[j],basis1=norm(sub(V(0,1,0),mul(p.axis,dot(V(0,1,0),p.axis))));
-    const b1=len(basis1)<.1?norm(cross(p.axis,V(1,0,0))):basis1;
-    const b2=norm(cross(p.axis,b1));
-    let best=p.axis,bestScore=Infinity,bestMetrics=rodMetrics(p,state,length),bestTheta=0;
-    for(let ri=0;ri<=14;ri++){
-      const theta=beta*ri/14;
-      const steps=ri===0?1:32;
-      for(let k=0;k<steps;k++){
-        const t=2*Math.PI*k/steps;
-        const offset=add(mul(b1,Math.cos(t)),mul(b2,Math.sin(t)));
-        const axis=norm(add(mul(p.axis,Math.cos(theta)),mul(offset,Math.sin(theta))));
-        const mm=rodMetrics({...p,axis},state,length);
-        // Strong penetration penalty, gentle pose-change prior. Small safe margin.
-        const deficit=Math.max(0,.022-mm.minClearance);
-        const score=mm.penetration*250+Math.min(deficit,.12)*10+theta*.095;
-        if(score<bestScore){bestScore=score;best=axis;bestMetrics=mm;bestTheta=theta;}
+    const p=poses[j];
+    // Surface here is a one-sided height field: upward normal is authoritative.
+    const sm=sampleSurface(state,p.a0.x,p.a0.z);
+    const n=sm?.normal??p.normal??V(0,1,0);
+    let currentA0=p.a0;
+    if(!p.contact && sm){
+      // Negative phi = below the surface. Lift only along the OUTWARD normal.
+      const depth=Math.max(0,(sm.point.y-currentA0.y)*n.y);
+      if(depth>0)currentA0=add(currentA0,mul(n,Math.min(.9,depth+.008)));
+    }
+    const base=rodMetrics({...p,a0:currentA0},state,length);
+    const prev=warped.at(-1),prevprev=warped.at(-2);
+    const b1Raw=sub(n,mul(p.axis,dot(n,p.axis)));
+    const seed=len(b1Raw)<1e-6?cross(p.axis,V(1,0,0)):b1Raw;
+    const b1=norm(seed),b2=norm(cross(p.axis,b1));
+    let best=p.axis,bestScore=Infinity,bestMetrics=base,bestTheta=0;
+    const score=(axis,mm,theta)=>{
+      const penetration=mm.penetration;
+      // Squared penetration: penetrating 0.2 produces 4x the load of 0.1.
+      const geo=wg*(700*penetration**2+4*Math.max(0,.025-mm.minClearance)**2);
+      const cone=wc*(theta**2);
+      let ribbon=0;
+      // Ribbon-like relative first and second differences within each pass.
+      if(prev&&prev.passId===p.passId){
+        const delta=sub(sub(axis,prev.axis),sub(p.axis,poses[j-1].axis));
+        ribbon+=wt*3*dot(delta,delta);
+      }
+      if(prevprev&&prevprev.passId===p.passId&&prev?.passId===p.passId){
+        const cur=sub(sub(axis,mul(prev.axis,2)),mul(prevprev.axis,-1));
+        const ref=sub(sub(p.axis,mul(poses[j-1].axis,2)),mul(poses[j-2].axis,-1));
+        const diff=sub(cur,ref);ribbon+=wb*1.5*dot(diff,diff);
+      }
+      return geo+cone+ribbon;
+    };
+    const evaluate=(axis,theta)=>{
+      // Do not steer the tool inward. This condition uses the outward normal,
+      // never its negation on the underside of the surface.
+      if(dot(sub(axis,p.axis),n)<-1e-8)return;
+      const mm=rodMetrics({...p,a0:currentA0,axis},state,length);
+      // No candidate may increase the current pose's collision penetration.
+      if(mm.penetration>base.penetration+1e-8)return;
+      const sc=score(axis,mm,theta);
+      if(sc<bestScore){bestScore=sc;best=axis;bestMetrics=mm;bestTheta=theta;}
+    };
+    evaluate(p.axis,0);
+    // Cone around the tilted axis. Only its outward half is admissible.
+    for(let ri=1;ri<=15;ri++){
+      const theta=beta*ri/15;
+      for(let k=0;k<24;k++){
+        const phase=2*Math.PI*k/24;
+        const lateral=add(mul(b1,Math.cos(phase)),mul(b2,Math.sin(phase)));
+        const axis=norm(add(mul(p.axis,Math.cos(theta)),mul(lateral,Math.sin(theta))));
+        evaluate(axis,theta);
       }
     }
-    // Only explicit non-contact A0 samples may move. Contact anchors remain exact.
-    // This is a local browser-demo lift heuristic, not M2 ribbon/force balance.
-    let resultA0=p.a0;
-    if(p.contact===false && bestMetrics.penetration>.004){
-      const lift=clamp(bestMetrics.penetration+.025,0,.35);
-      const nn=p.normal??V(0,1,0),candidate=add(p.a0,mul(nn,lift));
-      const liftedMetrics=rodMetrics({...p,a0:candidate},state,length);
-      if(liftedMetrics.penetration<bestMetrics.penetration){resultA0=candidate;bestMetrics=liftedMetrics;}
+    // Optional A0 lift for non-contact skill poses; never move contact anchors.
+    if(!p.contact && bestMetrics.penetration>.004){
+      const lift=Math.min(.9,bestMetrics.penetration+.01);
+      const proposed=add(currentA0,mul(n,lift));
+      const mLift=rodMetrics({...p,a0:proposed,axis:best},state,length);
+      if(mLift.penetration<bestMetrics.penetration-1e-8){
+        currentA0=proposed;bestMetrics=mLift;
+      }
     }
     if(bestMetrics.penetration>.004)failure++;
-    warped.push({...p,a0:resultA0,axis:best,a1:add(resultA0,mul(best,length)),deviationDeg:bestTheta*180/Math.PI});
+    warped.push({...p,a0:currentA0,axis:best,a1:add(currentA0,mul(best,length)),deviationDeg:bestTheta*180/Math.PI});
   }
   return {warped,failure};
 }
@@ -325,6 +369,8 @@ export function placeNominal(skill,guide,repeats=1,tiltDeg=65,length=1.2,reverse
     if(len(sourceUp)<1e-7)sourceUp=sub(V(0,0,1),mul(sourceForward,sourceForward.z));
     sourceUp=norm(sourceUp);const sourceSide=norm(cross(sourceForward,sourceUp));
     const worldAxis=axis=>norm(add(add(mul(frame.forward,dot(axis,sourceForward)),mul(frame.up,dot(axis,sourceUp))),mul(frame.side,dot(axis,sourceSide))));
+    // 0° = forward tangent, 90° = outward surface normal,
+    // 180° = backward tangent. No below-surface normal flipping.
     const sg=reverse?-1:1;
     const defaultAxis=norm(add(mul(frame.forward,sg*Math.cos(rad(tiltDeg))),mul(frame.up,Math.sin(rad(tiltDeg)))));
     const frameGroup={...frame,start:a.point,end:b.point,scaleFactor:sim,from:k,contactIndices:[]};
@@ -332,7 +378,13 @@ export function placeNominal(skill,guide,repeats=1,tiltDeg=65,length=1.2,reverse
       const p=skill[i],local=sub(V(p.u,p.v,p.w),V(first.u,first.v,first.w));
       const rel=add(add(mul(frame.forward,dot(local,sourceForward)),mul(frame.up,dot(local,sourceUp))),mul(frame.side,dot(local,sourceSide)));
       const a0=add(frame.origin,mul(rel,sim)),contact=Boolean(p.contact)||i===0||i===skill.length-1;
-      const axis=p.axis?worldAxis(p.axis):defaultAxis;
+      // CSV axis data is the nominal reference at 25°. The live tool-angle
+      // slider applies a shared angular offset around the local side axis.
+      let axis=defaultAxis;
+      if(p.axis){
+        const original=worldAxis(p.axis),a=rad(tiltDeg-25),rotationAxis=frame.side;
+        axis=norm(add(add(mul(original,Math.cos(a)),mul(cross(rotationAxis,original),Math.sin(a))),mul(rotationAxis,dot(rotationAxis,original)*(1-Math.cos(a)))));
+      }
       out.push({a0,a1:add(a0,mul(axis,length)),axis,contact,passId:k,guide:k/maxN+i/Math.max(1,skill.length-1)/maxN,normal:frame.up});
       if(contact)frameGroup.contactIndices.push(out.length-1);
     }
@@ -345,7 +397,7 @@ export function placeContactGuide(guide,length,tiltDeg,reverse=false,a1Stroke=nu
   const poses=contacts.map((c,i)=>{
     const prev=contacts[Math.max(0,i-1)].point,next=contacts[Math.min(count-1,i+1)].point;
     const forward=norm(sub(next,prev)),tangent=norm(sub(forward,mul(c.normal,dot(forward,c.normal))));
-    const alpha=a1Stroke?clamp(tiltDeg+(0.5-atStroke(a1Stroke,i/(count-1)))*90,5,88):tiltDeg;
+    const alpha=a1Stroke?clamp(tiltDeg+(0.5-atStroke(a1Stroke,i/(count-1)))*90,0,180):tiltDeg;
     const axis=norm(add(mul(tangent,(reverse?-1:1)*Math.cos(rad(alpha))),mul(c.normal,Math.sin(rad(alpha)))));
     return {a0:c.point,a1:add(c.point,mul(axis,length)),axis,normal:c.normal,contact:true,passId:0,guide:i/(count-1)};
   });
