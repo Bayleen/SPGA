@@ -4,7 +4,7 @@ const $ = id=>document.getElementById(id);
 const stage=$('stage'),canvas=$('sceneCanvas'),ctx=canvas.getContext('2d',{alpha:false});
 const sketch=$('drawCanvas'),dc=sketch.getContext('2d');
 const state={surface:{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1},
- stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',a1Stroke:null,repeats:3,edit3D:false,selected:15,preview:null,guide:null,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,
+ stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',a1Stroke:null,repeats:3,edit3D:false,selected:15,preview:null,guide:null,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,
  mode:'orbit',viewLocked:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)},mesh:null,cut:null,contacts:[],tilted:[],warped:[],pose:0,
  playing:false,playClock:0,showBoth:true,planeVisible:true,gridVisible:true,
  layers:{surface:true,plane:true,guide:true,nominal:true,tilt:true,warp:true},drag:null,dirty:true};
@@ -41,13 +41,13 @@ function generateTilted(announce=true){
 }
 function warp(announce=true){
  if(!state.tilted.length&&!generateTilted(false))return;
- const result=warpDemo(state.tilted,state.surface,state.rodLength,state.coneAngle);
- state.warped=result.warped;updateMetric();updateFrame();state.dirty=true;
+ const result=warpDemo(state.tilted,state.surface,state.rodLength,state.coneAngle,{geometry:state.geometryGain,conic:state.conicGain,tension:state.tensionGain,bending:state.bendingGain});
+ state.warped=result.warped;updateMetric();updateFrame();updateForceDiagram();state.dirty=true;
  if(announce)lockScene();
  if(announce)toast(`Warp 完成：${state.warped.length} 个 poses，剩余 ${result.failure} 个碰撞姿态（采样近似）。`);
 }
 const editControls=['surfaceX','surfaceZ','surfaceRot','surfaceScale','cutAngle','cutOffset','strokeAmp',
- 'rodLength','tiltAngle','coneAngle','reverseTool','btnDrawSurface','btnGuide','btnDrawGuide','btnDrawTraj','btnNominal3D','btnHalf','btnSpiral','btnImportCSV','repeats','btnDrawA1'];
+ 'btnDrawSurface','btnGuide','btnDrawGuide','btnDrawTraj','btnNominal3D','btnHalf','btnSpiral','btnImportCSV','repeats','btnDrawA1'];
 function updateEditorLock(){
  const locked=state.viewLocked;
  for(const id of editControls)$(id).disabled=locked;
@@ -57,7 +57,7 @@ function updateEditorLock(){
  $('btnModeRotate').disabled=locked;
  $('btnEditScene').hidden=!locked;
  $('editModeHint').textContent=locked?
-  '🔒 已生成：拖动只调整视角；如需移动模型或修改参数，点 Edit scene。':
+  '🔒 Surface / Guide / Nominal 已锁定；Tool angle、length 和右侧 Force Balance 可实时修改。':
   '编辑阶段：可以 Move / Rotate 曲面。生成 Tilted 后自动进入只读查看。';
 }
 function lockScene(){
@@ -199,6 +199,7 @@ function loop(now){
  if(state.dirty)drawScene();requestAnimationFrame(loop);
 }
 function updateUI(){
+ updateForceDiagram();
  for(const [id,value,suffix] of [['xVal',state.surface.offsetX.toFixed(2),''],['zVal',state.surface.offsetZ.toFixed(2),''],['rotVal',state.surface.rotation.toFixed(0),'°'],['scaleVal',state.surface.scale.toFixed(2),'×'],['cutAngleVal',state.cutAngle,'°'],['cutOffsetVal',state.cutOffset.toFixed(2),''],['amplitudeVal',state.amplitude.toFixed(2),''],['repeatsVal',state.repeats,''],['lengthVal',state.rodLength.toFixed(2),''],['tiltVal',state.tiltAngle,'°'],['coneVal',state.coneAngle,'°']])$(id).textContent=value+suffix;
  $('sceneName').textContent={hill:'Complex hill',saddle:'Saddle surface',profile:'Extruded 2D profile'}[state.surface.type];
  $('surfaceOptions').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.surface===state.surface.type));
@@ -208,8 +209,39 @@ function paintStrokeThumbnail(){const el=$('smallStroke'),c=el.getContext('2d');
  c.strokeStyle='#f6cc8b';c.lineWidth=2.3;c.beginPath();for(let i=0;i<90;i++){const x=i/89,p={x:12+x*(el.width-24),y:8+atStroke(state.stroke,x)*(el.height-20)};i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y);}c.stroke();}
 function applyTerrain(type){state.surface.type=type;invalidate(true);updateUI();toast(type==='profile'?'已切换到手绘拉伸曲面。':'已加载 '+type+' 示例曲面。');}
 $('surfaceOptions').addEventListener('click',e=>{const b=e.target.closest('button[data-surface]');if(b)applyTerrain(b.dataset.surface);});
-for(const [id,prop,field,regen] of [['surfaceX','offsetX','surface',true],['surfaceZ','offsetZ','surface',true],['surfaceRot','rotation','surface',true],['surfaceScale','scale','surface',true],['cutAngle','cutAngle','root',false],['cutOffset','cutOffset','root',false],['strokeAmp','amplitude','root',false],['rodLength','rodLength','root',false],['tiltAngle','tiltAngle','root',false],['coneAngle','coneAngle','root',false],['repeats','repeats','root',false]]){
+for(const [id,prop,field,regen] of [['surfaceX','offsetX','surface',true],['surfaceZ','offsetZ','surface',true],['surfaceRot','rotation','surface',true],['surfaceScale','scale','surface',true],['cutAngle','cutAngle','root',false],['cutOffset','cutOffset','root',false],['strokeAmp','amplitude','root',false],['repeats','repeats','root',false]]){
  $(id).addEventListener('input',e=>{const val=Number(e.target.value);if(field==='surface')state.surface[prop]=val;else state[prop]=val;invalidate(regen);updateUI();});
+}
+// Keep geometry, guide and nominal frozen once Tilted is generated. Tool settings
+// remain live and preserve playback pose. If Warp exists, it is recomputed.
+function recomputeToolLive(){
+  const pose=state.pose,hadWarp=state.warped.length>0;
+  if(state.tilted.length){
+    if(!generateTilted(false))return;
+    if(hadWarp)warp(false);
+    state.pose=clamp(pose,0,state.tilted.length-1);
+    updateFrame();updateMetric();state.dirty=true;
+  } else refreshPreview();
+}
+for(const [id,prop] of [['rodLength','rodLength'],['tiltAngle','tiltAngle']]){
+ $(id).addEventListener('input',e=>{state[prop]=Number(e.target.value);recomputeToolLive();updateUI();});
+}
+function updateForceDiagram(){
+ for(const [out,val,unit] of [['geometryVal',state.geometryGain,'×'],['conicVal',state.conicGain,'×'],['tensionVal',state.tensionGain,'×'],['bendingVal',state.bendingGain,'×']]) $(out).textContent=val.toFixed(2)+unit;
+ $('coneVal').textContent=state.coneAngle+'°';
+ // Visual lengths follow slider strengths, not actual numerical forces.
+ $('forceGeo').setAttribute('y2',String(60-15-35*state.geometryGain/4));
+ $('forceCone').setAttribute('x2',String(181+12+40*state.conicGain/4));
+ $('forceCone').setAttribute('y2',String(63+10+30*state.conicGain/4));
+ $('forceRibbon').setAttribute('x2',String(178-15-35*(state.tensionGain+state.bendingGain)/6));
+ $('balanceCaption').textContent=state.warped.length?'权重调整 → Warp 已按新参数重新计算。':'权重调整后点击 Warp；生成之后会实时重算。';
+}
+for(const [id,prop] of [['coneAngle','coneAngle'],['geometryGain','geometryGain'],['conicGain','conicGain'],['tensionGain','tensionGain'],['bendingGain','bendingGain']]){
+ $(id).addEventListener('input',e=>{
+  state[prop]=Number(e.target.value);
+  if(state.warped.length)warp(false);
+  updateUI();
+ });
 }
 $('reverseTool').addEventListener('change',e=>{state.reverse=e.target.checked;invalidate();});
 $('btnGuide').addEventListener('click',()=>{updateGuide();toast(`已生成 ${state.guide.points.length} 个 Guide 点；Nominal 与 Guide 独立。`);});
@@ -322,12 +354,12 @@ $('btnDrawApply').addEventListener('click',()=>{
  }catch(err){$('drawStatus').textContent=err.message;}
 });
 function exportProject(){
- const data={format:'SPGA-WebLab-Demo-v2',notice:'Browser demo, not the archived research SPGA-M2 solver.',units:'arbitrary display units',surface:state.surface,guideStroke:state.stroke,guide:state.guide.points.map(c=>c.point),nominal:state.nominal,nominalSkillName:state.skillName,taskMode:state.taskMode,repeats:state.repeats,contactMask:state.tilted.map(p=>p.contact),cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,tiltAngleDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
+ const data={format:'SPGA-WebLab-Demo-v3',notice:'Browser demo, not the archived research SPGA-M2 solver.',units:'arbitrary display units',surface:state.surface,guideStroke:state.stroke,guide:state.guide.points.map(c=>c.point),nominal:state.nominal,nominalSkillName:state.skillName,taskMode:state.taskMode,repeats:state.repeats,contactMask:state.tilted.map(p=>p.contact),cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,angleFromSurfaceDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},demoBalance:{geometryGain:state.geometryGain,conicGain:state.conicGain,ribbonTensionGain:state.tensionGain,ribbonBendingGain:state.bendingGain},tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='spga_web_lab_demo.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);toast('已导出曲面参数、路径和 Tilted / Warped poses (JSON)。');
 }
 $('btnExport').addEventListener('click',exportProject);
-$('btnReset').addEventListener('click',()=>{Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',repeats:3,a1Stroke:null,edit3D:false,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
- for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['repeats',3],['rodLength',1.2],['tiltAngle',25],['coneAngle',40]])$(id).value=n;
+$('btnReset').addEventListener('click',()=>{Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',repeats:3,a1Stroke:null,edit3D:false,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
+ for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['repeats',3],['rodLength',1.2],['tiltAngle',25],['coneAngle',40],['geometryGain',1],['conicGain',1],['tensionGain',.6],['bendingGain',.35]])$(id).value=n;
  $('reverseTool').checked=false;$('taskModes').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.task==='skill'));$('liftSkillControls').hidden=false;$('contactSkillControls').hidden=true;$('btnNominal3D').classList.remove('active');invalidate(true);state.viewLocked=false;updateEditorLock();setMode('orbit');updateUI();toast('已恢复默认 Hill 场景；可编辑后 Generate Tilted → Warp。');});
 
 // Start in edit mode with a ready-to-use Hill & Guide, but NO generated poses.
