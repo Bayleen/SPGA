@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a101b" />
+  <title>SPGA · Interactive Pose Warping Lab</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="brand-icon">S<span>·</span></div><div><strong>SPGA <span class="brand-lite">LAB</span></strong><small>INTERACTIVE POSE WARPING</small></div></div>
+  <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> EXPERIMENTAL DEMO</div>
+  <div class="topactions"><button id="btnReset" class="quiet">↺ Reset</button><button id="btnExport" class="outline">↗ Export JSON</button></div>
+</header>
+<main class="app">
+ <aside class="sidebar left">
+  <div class="side-title"><div class="eyebrow">WORKFLOW</div><h2>Build a skill</h2><p>Surface → Guide → Tilt → Warp</p></div>
+  <section class="card"><div class="card-title"><b class="step">01</b><h3>Surface <small>曲面</small></h3></div>
+    <p class="helper">选择示例或手绘 2D 侧面轮廓，沿深度方向拉伸为 3D 曲面。</p>
+    <div class="segmented" id="surfaceOptions"><button data-surface="hill" class="active">Hill</button><button data-surface="saddle">Saddle</button><button data-surface="profile">My 2D</button></div>
+    <button id="btnDrawSurface" class="action-soft" style="width:100%">✎ Draw 2D profile <span>↗</span></button>
+    <div class="dividerline"></div>
+    <div class="section-head">SURFACE TRANSFORM <span class="micro">3D</span></div>
+    <label class="slider-row">Move X <output id="xVal">0.00</output><input id="surfaceX" type="range" min="-2.8" max="2.8" value="0" step="0.1" /></label>
+    <label class="slider-row">Move Z <output id="zVal">0.00</output><input id="surfaceZ" type="range" min="-2.8" max="2.8" value="0" step="0.1" /></label>
+    <label class="slider-row">Rotate Y <output id="rotVal">0°</output><input id="surfaceRot" type="range" min="-180" max="180" value="0" step="5" /></label>
+    <label class="slider-row">Scale <output id="scaleVal">1.00×</output><input id="surfaceScale" type="range" min="0.65" max="1.30" value="1" step="0.05" /></label>
+    <div class="segmented small"><button id="btnModeOrbit" class="active">◉ Orbit</button><button id="btnModeMove">↔ Move</button><button id="btnModeRotate">⟳ Rotate</button></div>
+  </section>
+  <section class="card"><div class="card-title"><b class="step">02</b><h3>Guide & Nominal <small>引导路径</small></h3></div>
+    <p class="helper">竖直切割平面与曲面相交形成 Guide；Nominal 手绘线表示沿 Guide 的横向摆动。</p>
+    <label class="slider-row">Cut angle <output id="cutAngleVal">0°</output><input id="cutAngle" type="range" min="-90" max="90" value="0" step="2" /></label>
+    <label class="slider-row">Plane offset <output id="cutOffsetVal">0.00</output><input id="cutOffset" type="range" min="-1.8" max="1.8" value="0" step="0.05" /></label>
+    <label class="slider-row">Stroke width <output id="amplitudeVal">0.70</output><input id="strokeAmp" type="range" min="0" max="1.5" value="0.7" step="0.05" /></label>
+    <div class="grid2"><button id="btnGuide" class="action-soft">⊞ Select guide</button><button id="btnDrawTraj" class="action-soft">✎ Draw nominal</button></div>
+    <div class="stroke-thumbnail"><canvas id="smallStroke" width="292" height="70"></canvas><span>Nominal (2D)</span></div>
+  </section>
+  <section class="card"><div class="card-title"><b class="step">03</b><h3>Tool & Warping <small>姿态变形</small></h3></div>
+    <p class="helper">A0 固定在接触路径上；棒长固定；Tilted 和 Warp 可对比播放。</p>
+    <label class="slider-row">Tool length <output id="lengthVal">1.20</output><input id="rodLength" type="range" min="0.4" max="2.1" value="1.2" step="0.05" /></label>
+    <label class="slider-row">Tilt angle <output id="tiltVal">65°</output><input id="tiltAngle" type="range" min="10" max="85" value="65" step="1" /></label>
+    <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="75" value="40" step="1" /></label>
+    <label class="check"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
+    <div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Warp ✦</button></div>
+  </section>
+ </aside>
+ <section class="center">
+   <div class="viewport-top"><div><span class="viewport-indicator"></span> <b>3D SCENE</b><span class="viewport-sep">/</span><span id="sceneName">Complex hill</span></div>
+     <div class="viewport-controls"><button id="btnHome" title="Reset camera">⌂ View</button><button id="btnGrid" class="on" title="Toggle grid">▦ Grid</button><button id="btnPlane" class="on" title="Toggle slice plane">◫ Plane</button></div></div>
+   <div id="stage"><canvas id="sceneCanvas" aria-label="3D interactive scene: drag to orbit, scroll to zoom, or select Move/Rotate to transform the surface"></canvas>
+     <div class="stage-help" id="stageHelp">DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT + DRAG TO PAN</div>
+     <div class="world-label">WORLD SPACE <span>Y ↑</span></div>
+     <div id="toast" class="toast" role="status"></div>
+   </div>
+   <div class="playback">
+      <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
+      <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp 使用浏览器中的碰撞采样与锥内姿态搜索，不是论文 SPGA-M2 的原始力平衡求解器。</span></div>
+   </div>
+ </section>
+ <aside class="sidebar right">
+   <div class="side-title"><div class="eyebrow">ANALYSIS</div><h2>Before / After</h2><p>Instant geometric diagnostics</p></div>
+   <section class="card analysis"><div class="section-head">CURRENT SCENE <span class="status-pill" id="sceneStatus">READY</span></div>
+      <div class="stats-large"><div><small>POSES</small><strong id="metricPoses">—</strong></div><div><small>TOOL LENGTH</small><strong id="metricLength">1.20</strong></div></div>
+      <div class="dividerline"></div>
+      <div class="analysis-row"><span><i class="dot tilted"></i> Tilted penetration</span><b id="metricTilt">—</b></div>
+      <div class="analysis-row"><span><i class="dot warped"></i> Warped penetration</span><b id="metricWarp">—</b></div>
+      <div class="analysis-row"><span>Colliding poses</span><b id="metricCollision">—</b></div>
+      <div class="analysis-row"><span>Max axis adjustment</span><b id="metricAngle">—</b></div>
+      <div id="metricHint" class="metric-hint">Generate Tilted, then Warp to see the difference.</div>
+   </section>
+   <section class="card"><div class="section-head">VISIBLE LAYERS</div>
+      <label class="layer"><span><i class="dot terrain"></i> Surface mesh</span><input id="layerSurface" type="checkbox" checked /></label>
+      <label class="layer"><span><i class="dot plane"></i> Cutting plane</span><input id="layerPlane" type="checkbox" checked /></label>
+      <label class="layer"><span><i class="dot guide"></i> Guide trajectory</span><input id="layerGuide" type="checkbox" checked /></label>
+      <label class="layer"><span><i class="dot nominal"></i> Nominal contacts</span><input id="layerNominal" type="checkbox" checked /></label>
+      <label class="layer"><span><i class="dot tilted"></i> Tilted tool</span><input id="layerTilt" type="checkbox" checked /></label>
+      <label class="layer"><span><i class="dot warped"></i> Warped tool</span><input id="layerWarp" type="checkbox" checked /></label>
+   </section>
+   <section class="card insight"><div class="section-head">HOW IT WORKS</div>
+      <div class="insight-step"><span>①</span><p><b>Sketch → surface</b><br/>把 2D 轮廓沿 Z 拉伸，或选择 Hill / Saddle。</p></div>
+      <div class="insight-step"><span>②</span><p><b>Slice → guide</b><br/>调整切割平面以选择曲面接触引导线。</p></div>
+      <div class="insight-step"><span>③</span><p><b>Draw → tilt</b><br/>Nominal 沿 Guide 放置，生成棒状工具姿态。</p></div>
+      <div class="insight-step"><span>④</span><p><b>Warp → compare</b><br/>保持 A0 与棒长，展示姿态修正和穿透差异。</p></div>
+   </section>
+   <div class="footnote">SPGA-M2 INSPIRED DEMONSTRATOR<br/>Client-side, static GitHub Pages compatible.</div>
+ </aside>
+</main>
+<div class="modal-backdrop" id="drawModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-heading"><div><div class="eyebrow">FREEHAND INPUT</div><h2 id="modalTitle">Draw 2D profile</h2></div><button id="btnCloseModal" class="icon-btn">✕</button></div>
+    <p id="modalHelp" class="helper">画一条从左到右的曲面侧轮廓。绘制完成后会沿深度方向拉伸。</p>
+    <div class="draw-zone"><canvas id="drawCanvas" width="860" height="370"></canvas><div class="draw-axis"><span>START</span><span>END →</span></div></div>
+    <div class="modal-footer"><span id="drawStatus">Drag to draw</span><div><button id="btnDrawClear" class="outline">Clear</button><button id="btnDrawDefault" class="outline">Example</button><button id="btnDrawApply" class="action-primary">Use this drawing →</button></div></div>
+  </div>
+</div>
+<input id="fileImport" type="file" accept=".json" hidden>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
