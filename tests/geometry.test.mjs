@@ -103,3 +103,37 @@ test('warp demo preserves all declared contact A0 anchors and fixed length',()=>
    close(len(sub(warped[i].a1,warped[i].a0)),.9);
  }
 });
+
+// v3: surface-relative 0..180 degree tool axis and one-sided warping.
+test('tool angle uses surface tangent reference: 0 forward, 90 outward, 180 backward',()=>{
+ const guide=buildGuide(base,Array.from({length:70},(_,i)=>({x:i/69,y:.5})),0,0);
+ for(const a of [0,30,90,150,180]){
+  const r=placeNominal(makeSkillExample('half',9),guide,1,a,1.7);
+  const axis=r.poses[0].axis,fr=r.groups[0];
+  close(dot(axis,fr.forward),Math.cos(rad(a)),1e-7);
+  close(dot(axis,fr.up),Math.sin(rad(a)),1e-7);
+  close(len(sub(r.poses[0].a1,r.poses[0].a0)),1.7,1e-7);
+ }
+});
+test('one-sided correction moves tool orientation outward, never inward, for both forward/back tilt',()=>{
+ const guide=buildGuide(base,Array.from({length:70},(_,i)=>({x:i/69,y:.5})),0,0);
+ for(const a of [0,25,90,160,180]){
+  const tilted=placeNominal(makeSkillExample('half',21),guide,2,a,1.2).poses;
+  const warped=warpDemo(tilted,base,1.2,60,{geometry:3,conic:.3,tension:.3,bending:.2}).warped;
+  for(let i=0;i<tilted.length;i++){
+   const n=sampleSurface(base,tilted[i].a0.x,tilted[i].a0.z).normal;
+   assert.ok(dot(sub(warped[i].axis,tilted[i].axis),n)>-1e-7,'a tool-axis correction must not point inward');
+   if(tilted[i].contact)close(len(sub(warped[i].a0,tilted[i].a0)),0,1e-8);
+   else assert.ok(dot(sub(warped[i].a0,tilted[i].a0),n)>-1e-7,'noncontact A0 may only lift outward');
+   close(len(sub(warped[i].a1,warped[i].a0)),1.2,1e-7);
+  }
+ }
+});
+test('geometry / conic / ribbon weights affect actual demo result',()=>{
+ const guide=buildGuide(base,Array.from({length:70},(_,i)=>({x:i/69,y:.5})),0,0);
+ const tilted=placeNominal(makeSkillExample('half',21),guide,2,25,1.2).poses;
+ const oldStyle=warpDemo(tilted,base,1.2,70,{geometry:.1,conic:4,tension:3,bending:3}).warped;
+ const collisionFirst=warpDemo(tilted,base,1.2,70,{geometry:4,conic:0,tension:0,bending:0}).warped;
+ assert.ok(collisionFirst.some((p,i)=>angle(p.axis,oldStyle[i].axis)>rad(.5)));
+ assert.ok(analyzePath(collisionFirst,base,1.2).maxPenetration<=analyzePath(oldStyle,base,1.2).maxPenetration+1e-6);
+});
