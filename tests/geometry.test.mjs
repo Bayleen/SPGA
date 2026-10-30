@@ -137,3 +137,30 @@ test('geometry / conic / ribbon weights affect actual demo result',()=>{
  assert.ok(collisionFirst.some((p,i)=>angle(p.axis,oldStyle[i].axis)>rad(.5)));
  assert.ok(analyzePath(collisionFirst,base,1.2).maxPenetration<=analyzePath(oldStyle,base,1.2).maxPenetration+1e-6);
 });
+
+
+// v4: three interior editable knots shared across all guide repeats; smooth C1.
+import {deformSkillWithHandles} from '../src/geometry.js';
+test('three knot brush preserves both contact endpoints and moves whole interior curve',()=>{
+ const base=makeSkillExample('half',81);
+ const handles=[{v:.12,w:.04},{v:.6,w:-.2},{v:-.08,w:.32}];
+ const out=deformSkillWithHandles(base,handles,.35);
+ assert.equal(out.length,base.length);
+ close(out[0].v,base[0].v);close(out[0].w,base[0].w);
+ close(out.at(-1).v,base.at(-1).v);close(out.at(-1).w,base.at(-1).w);
+ for(let i=0;i<81;i++)assert.equal(out[i].contact,base[i].contact);
+ for(let j=0;j<3;j++){
+  const i=(j+1)*20;
+  close(out[i].v-base[i].v,handles[j].v,1e-7);
+  close(out[i].w-base[i].w,handles[j].w,1e-7);
+ }
+ assert.ok(out.slice(1,-1).some((q,i)=>Math.abs(q.v-base[i+1].v)>.15));
+});
+test('continuous cardinal-Hermite brush has matching tangents at knots',()=>{
+ const base=Array.from({length:4001},(_,i)=>({u:i/4000,v:0,w:0,contact:i===0||i===4000}));
+ const out=deformSkillWithHandles(base,[{v:.12,w:-.1},{v:.8,w:.2},{v:.1,w:-.4}],.35);
+ for(const j of [1000,2000,3000]){
+   const left=(out[j].v-out[j-1].v),right=(out[j+1].v-out[j].v);
+   assert.ok(Math.abs(left-right)<.00002,`knot ${j}: ${left} vs ${right}`);
+ }
+});
