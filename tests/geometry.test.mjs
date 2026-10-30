@@ -54,3 +54,52 @@ test('Tilted heading follows fixed guide direction, not freehand lateral wiggles
   close(angle(p.axis,p.normal),rad(65),1e-7);
  }
 });
+
+// v2: strictly distinguish source skill from guide and preserve primitive similarity.
+import {sketchToSkill,makeSkillExample,parseNominalCSV,buildGuide,pointOnGuide,placeNominal,placeContactGuide} from '../src/geometry.js';
+test('2D handwritten loops retain stroke order instead of sorting by X',()=>{
+ const raw=[{x:.10,y:.78},{x:.45,y:.22},{x:.75,y:.38},{x:.33,y:.43},{x:.75,y:.6},{x:.91,y:.77}];
+ const pts=sketchToSkill(raw,101);assert.equal(pts.length,101);
+ assert.ok(pts.some((p,i)=>i&&p.u<pts[i-1].u-.01),'drawn backward loop should survive resampling');
+ close(pts[0].u,0);close(pts[0].v,0);close(pts.at(-1).u,1);close(pts.at(-1).v,0);
+ assert.equal(pts.filter(p=>p.contact).length,2);
+});
+test('spiral is genuinely 3D and source endpoints are contact only',()=>{
+ const s=makeSkillExample('spiral');assert.ok(Math.max(...s.map(p=>p.w))>.10);assert.ok(Math.min(...s.map(p=>p.w))<-.10);
+ assert.equal(s.filter(p=>p.contact).length,2);
+});
+test('each lifted primitive tiled with a single similarity, two exact guide foot anchors',()=>{
+ const guide=buildGuide(base,Array.from({length:60},(_,i)=>({x:i/59,y:.5})),16,.2);
+ const nominal=makeSkillExample('spiral');const tiled=placeNominal(nominal,guide,3,65,1.2);
+ assert.equal(tiled.poses.length,nominal.length*3);assert.equal(tiled.poses.filter(p=>p.contact).length,6);
+ for(let k=0;k<3;k++){
+   const block=tiled.poses.slice(k*nominal.length,(k+1)*nominal.length),gr=tiled.groups[k];
+   close(len(sub(block[0].a0,gr.start)),0,1e-7);close(len(sub(block.at(-1).a0,gr.end)),0,1e-7);
+   for(let i of [5,20,38,55,75])for(let j of [2,30,70]){
+     const a=nominal[i],b=nominal[j],source=Math.hypot(a.u-b.u,a.v-b.v,a.w-b.w);
+     close(len(sub(block[i].a0,block[j].a0)),source*gr.scaleFactor,1e-7);
+   }
+   for(const p of block){close(len(sub(p.a1,p.a0)),1.2);}
+   assert.ok(block.slice(1,-1).some(p=>p.a0.y>Math.min(gr.start.y,gr.end.y)+.15),'noncontact interior lifts');
+ }
+});
+test('all-contact guide samples all touch the surface with fixed tool length',()=>{
+ const guide=buildGuide(base,defaultStroke,12,0,95,.5);
+ const poses=placeContactGuide(guide,1.2,55,false,null,67).poses;
+ assert.equal(poses.length,67);assert.ok(poses.every(p=>p.contact));
+ for(const p of poses){close(len(sub(p.a1,p.a0)),1.2);close(sampleSurface(base,p.a0.x,p.a0.z).point.y,p.a0.y,1e-4);}
+});
+test('CSV nominal accepts ordered 3D u/v/w and rejects invalid columns',()=>{
+ const poses=parseNominalCSV('u,v,w,contact,ax,ay,az\n0,0,0,1,1,0,0\n.25,.2,.14,0,1,0,0\n.15,.3,-.12,0,1,0,0\n1,0,0,1,1,0,0');
+ assert.equal(poses.length,4);close(poses[2].u,.15);assert.ok(poses[2].axis);
+ assert.throws(()=>parseNominalCSV('x,y,z\n1,2,3\n2,3,4\n3,4,5'),/missing/);
+});
+test('warp demo preserves all declared contact A0 anchors and fixed length',()=>{
+ const guide=buildGuide(base,defaultStroke,0,0);
+ const tilted=placeNominal(makeSkillExample('half',21),guide,1,78,.9).poses;
+ const warped=warpDemo(tilted,base,.9,30).warped;
+ for(let i=0;i<tilted.length;i++){
+   if(tilted[i].contact)close(len(sub(warped[i].a0,tilted[i].a0)),0);
+   close(len(sub(warped[i].a1,warped[i].a0)),.9);
+ }
+});
