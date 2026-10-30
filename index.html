@@ -1,23 +1,23 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0a101b" />
-  <title>SPGA · Interactive Pose Warping Lab</title>
+  <title>SPGA — Skill-Preserving Pose Warping</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><div class="brand-icon">S<span>·</span></div><div><strong>SPGA <span class="brand-lite">LAB</span></strong><small>INTERACTIVE POSE WARPING</small></div></div>
+  <div class="brand"><div class="brand-icon">S<span>·</span></div><div><strong>SPGA</strong><small>SKILL-PRESERVING POSE WARPING</small></div></div>
   <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> EXPERIMENTAL DEMO</div>
-  <div class="topactions"><button id="btnReset" class="quiet">↺ Reset</button><button id="btnExport" class="outline">↗ Export JSON</button></div>
+  <div class="topactions"><button id="btnTutorial" class="tutorial-trigger">✦ Beginner Tutorial</button><button id="btnReset" class="quiet">↺ Reset</button><button id="btnExport" class="outline">↗ Export JSON</button></div>
 </header>
 <main class="app">
  <aside class="sidebar left">
   <div class="side-title"><div class="eyebrow">WORKFLOW</div><h2>Build a skill</h2><p>Surface → Guide → Nominal → Tilted → Warp</p></div>
-  <section class="card"><div class="card-title"><b class="step">01</b><h3>Surface <small>曲面</small></h3></div>
-    <p class="helper">选择示例或手绘 2D 侧面轮廓，沿深度方向拉伸为 3D 曲面。</p>
+  <section class="card" id="tutorialSurface"><div class="card-title"><b class="step">01</b><h3>Surface <small>Geometry</small></h3></div>
+    <p class="helper">Choose a preset or draw a 2D side profile and extrude it into a 3D surface.</p>
     <div class="segmented" id="surfaceOptions"><button data-surface="hill" class="active">Hill</button><button data-surface="saddle">Saddle</button><button data-surface="profile">My 2D</button></div>
     <button id="btnDrawSurface" class="action-soft" style="width:100%">✎ Draw 2D profile <span>↗</span></button>
     <div class="dividerline"></div>
@@ -27,19 +27,19 @@
     <label class="slider-row">Rotate Y <output id="rotVal">0°</output><input id="surfaceRot" type="range" min="-180" max="180" value="0" step="5" /></label>
     <label class="slider-row">Scale <output id="scaleVal">1.00×</output><input id="surfaceScale" type="range" min="0.65" max="1.30" value="1" step="0.05" /></label>
     <div class="segmented small"><button id="btnModeOrbit" class="active">◉ Orbit</button><button id="btnModeMove">↔ Move</button><button id="btnModeRotate">⟳ Rotate</button></div>
-    <p class="edit-hint" id="editModeHint">随时可调整：Orbit 只改视角；Move / Rotate 改曲面；3D edit 拖动技能控制点，生成后仍自动更新。</p>
+    <p class="edit-hint" id="editModeHint">Edit any time: Orbit changes only the camera; Move / Rotate changes the surface; 3D edit changes skill control points. Generated results update live.</p>
     
   </section>
-  <section class="card"><div class="card-title"><b class="step">02</b><h3>Guide <small>曲面上的摆放路径</small></h3></div>
-    <p class="helper">黄色 Guide 来自切割平面与 Surface 的交线；也可以手绘左右偏移的 Guide。它不是 Nominal Skill。</p>
+  <section class="card" id="tutorialGuide"><div class="card-title"><b class="step">02</b><h3>Guide <small>Placement path on the surface</small></h3></div>
+    <p class="helper">The yellow Guide follows the intersection of the cutting plane and the surface. You can also sketch lateral offsets. The Guide is not the Nominal Skill.</p>
     <label class="slider-row">Cut angle <output id="cutAngleVal">0°</output><input id="cutAngle" type="range" min="-90" max="90" value="0" step="2" /></label>
     <label class="slider-row">Plane offset <output id="cutOffsetVal">0.00</output><input id="cutOffset" type="range" min="-1.8" max="1.8" value="0" step="0.05" /></label>
     <label class="slider-row">Guide stroke width <output id="amplitudeVal">0.70</output><input id="strokeAmp" type="range" min="0" max="1.5" value="0.7" step="0.05" /></label>
     <div class="grid2"><button id="btnGuide" class="action-soft">⊞ Select cut guide</button><button id="btnDrawGuide" class="action-soft">✎ Draw guide A0</button></div>
     <div class="stroke-thumbnail"><canvas id="smallStroke" width="292" height="70"></canvas><span>Guide (2D offset)</span></div>
   </section>
-  <section class="card"><div class="card-title"><b class="step">03</b><h3>Nominal Skill <small>A0 源轨迹</small></h3></div>
-    <p class="helper">与 Guide 独立。两端接触，中间可 lift；绘制是技能自身的空间形状，不是曲面轨迹。</p>
+  <section class="card" id="tutorialNominal"><div class="card-title"><b class="step">03</b><h3>Nominal Skill <small>Original A0 path</small></h3></div>
+    <p class="helper">Independent of the Guide. Start and end points are contacts; intermediate A0 points may lift away from the surface.</p>
     <div class="segmented" id="taskModes"><button data-task="skill" class="active">Lifted skill</button><button data-task="contact">All-contact</button></div>
     <div id="liftSkillControls">
       <div class="grid2"><button id="btnDrawTraj" class="action-soft">✎ Draw nominal</button><button id="btnNominal3D" class="action-soft">◇ 3D edit</button></div>
@@ -48,18 +48,18 @@
       <a class="sample-link" href="./examples/nominal_3d_spiral.csv" download>↓ Download CSV format example</a>
       <label class="slider-row">Repeat on guide <output id="repeatsVal">3</output><input id="repeats" type="range" min="1" max="6" value="3" step="1" /></label>
       <label class="slider-row">Brush curve tension <output id="brushTensionVal">0.35</output><input id="brushTension" type="range" min="0" max="1" value="0.35" step="0.05" /></label>
-      <p class="edit-hint" id="skillEditHint">每个重复段只有 3 个白色控制点（1/4、1/2、3/4），它们编辑同一个 Nominal 技能；拖动后以 C¹ 平滑曲线更新所有重复段。两端接触点固定。</p>
+      <p class="edit-hint" id="skillEditHint">Each repeated pass shows just three white control points (¼, ½, ¾). Dragging one updates the shared skill through a C¹-smooth curve. Contact endpoints stay fixed.</p>
     </div>
-    <div id="contactSkillControls" hidden><p class="helper">Guide 就是 A0 的完整接触路径。可以手绘 Guide，也可以手绘 A1 的倾角变化（棒长始终固定）。</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
+    <div id="contactSkillControls" hidden><p class="helper">The Guide becomes the all-contact A0 path. You may draw the Guide and separately sketch A1 orientation; the rod length stays fixed.</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
     <div class="skill-banner" id="nominalSummary">Nominal: 3D half-circle · endpoints contact</div>
   </section>
-  <section class="card"><div class="card-title"><b class="step">04</b><h3>Tool & Warping <small>姿态变形</small></h3></div>
-    <p class="helper">Lifted skill 仅锁定 Contact Mask 标记的 A0；All-contact 每个 A0 接触。棒长固定。</p>
+  <section class="card" id="tutorialTool"><div class="card-title"><b class="step">04</b><h3>Tool & Warping <small>Pose adaptation</small></h3></div>
+    <p class="helper">For lifted skills, only A0 samples marked by the contact mask are anchored. In all-contact mode, every A0 stays in contact. Rod length is fixed.</p>
     <label class="slider-row">Tool length <output id="lengthVal">1.20</output><input id="rodLength" type="range" min="0.4" max="2.1" value="1.2" step="0.05" /></label>
-    <p class="helper">Tilted 使用整体 Sim(3) 摆放 Nominal，不逐点投影。生成后仍可实时调整棒长和角度；Surface / Guide / Nominal 锁定。</p>
+    <p class="helper">Tilted places each nominal primitive with one similarity transform (Sim(3)), not point-by-point projection. Surface, Guide, Nominal, tool length and angle remain editable after generation.</p>
     <label class="slider-row">Tool angle vs surface <output id="tiltVal">25°</output><input id="tiltAngle" type="range" min="0" max="180" value="25" step="1" /></label>
     
-    <p class="helper">0° = 前倾沿切线；90° = 沿外法线；180° = 后仰沿反向切线。工具角度相对曲面切平面，不是相对 Normal。</p>
+    <p class="helper">0° = forward along the surface tangent; 90° = outward surface normal; 180° = backward along the tangent. Angle is measured relative to the surface, not the normal.</p>
     <label class="check" style="display:none"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
     <div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Warp ✦</button></div>
   </section>
@@ -72,11 +72,11 @@
      <div class="world-label">WORLD SPACE <span>Y ↑</span></div>
      <div id="toast" class="toast" role="status"></div>
    </div>
-   <div class="playback">
+   <div class="playback" id="tutorialPlayback">
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
       <div class="pose-selection-bar"><label class="check compact"><input id="showConic" type="checkbox" checked/> ◎ Show selected conic</label><label class="check compact"><input id="focusPose" type="checkbox" checked/> Focus one pose</label><span>Click a pose / rod in 3D to inspect its cone · β = <b id="coneBadge">40°</b></span></div>
-      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp 是单向外法线排斥 + 锥内姿态搜索 + 近似 Ribbon 的浏览器演示，不是 Python SPGA-M2 的完整力平衡求解器。</span></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp uses an outward-only surface response, cone-constrained orientation search and an approximate Ribbon term. This browser demo is not the full Python SPGA-M2 force-balance solver.</span></div>
    </div>
  </section>
  <aside class="sidebar right">
@@ -91,36 +91,75 @@
       <div id="metricHint" class="metric-hint">Generate Tilted, then Warp to see the difference.</div>
    </section>
    <section class="card" id="poseInspector"><div class="section-head">SELECTED POSE <span class="micro" id="poseInspectIndex">—</span></div>
-      <p class="helper">在 3D 中点击任意棒子/轨迹点，或拖动播放条。蓝色锥体以 Tilted 方向为轴，半角 β 限制 Warp 方向。</p>
+      <p class="helper">Click a rod or trajectory point in 3D, or scrub the timeline. The blue cone is centered on the Tilted tool axis; its half-angle β bounds the allowed Warp direction.</p>
       <div class="analysis-row"><span>Tool-axis change</span><b id="poseDelta">—</b></div>
       <div class="analysis-row"><span>Penetration (Tilted → Warp)</span><b id="posePen">—</b></div>
       <div class="analysis-row"><span>A1 displacement</span><b id="poseA1">—</b></div>
-      <p class="parameter-hint" id="sliderEffectHint">先生成 Tilted / Warp，再比较权重变化；有碰撞的 Pose 更容易看到差异。</p>
+      <p class="parameter-hint" id="sliderEffectHint">Generate Tilted and Warp first, then adjust weights. Poses with penetration often show the clearest differences.</p>
       <div class="grid2"><button id="presetAvoid" class="action-soft">↑ Avoid collision</button><button id="presetPreserve" class="action-soft">⌁ Preserve skill</button></div>
     </section>
-   <section class="card balance-card">
+   <section class="card balance-card" id="tutorialBalance">
      <div class="section-head">FORCE BALANCE <span class="micro">LIVE DEMO</span></div>
-     <p class="helper">Geometry 向外排斥；Conic 把姿态拉回 Tilted 附近；Ribbon 抵抗相邻姿态与轨迹形变。下面权重会重新计算浏览器 Warp，<strong>不是 Python M2 的原始增益值</strong>。</p>
-     <svg class="force-diagram" viewBox="0 0 280 156" role="img" aria-label="Geometry upward, Conic toward tilted axis, Ribbon maintains neighboring pose shape">
-       <defs><marker id="arrowGeo" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#54e4d4" /></marker>
-       <marker id="arrowCone" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#e4c482" /></marker>
-       <marker id="arrowRibbon" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#cc9cf0" /></marker></defs>
-       <path d="M24 116 Q64 100 108 118 T256 118" fill="none" stroke="#6695b6" stroke-width="3"/>
-       <path d="M110 118 L185 54" stroke="#ffb2a0" stroke-width="6" stroke-linecap="round" />
-       <circle cx="110" cy="118" r="5" fill="#a2edd1"/><text x="91" y="133" fill="#c3dae7" font-size="10">A0</text><text x="187" y="49" fill="#d5ebf1" font-size="10">A1</text>
-       <g class="animated-forces"><line id="forceGeo" x1="182" y1="60" x2="182" y2="10" stroke="#54e4d4" stroke-width="3" marker-end="url(#arrowGeo)"/><text x="194" y="16" fill="#54e4d4" font-size="10">Fg</text>
-       <line id="forceCone" x1="181" y1="63" x2="216" y2="99" stroke="#e4c482" stroke-width="3" marker-end="url(#arrowCone)"/><text x="219" y="109" fill="#e4c482" font-size="10">Fc</text>
-       <line id="forceRibbon" x1="178" y1="60" x2="137" y2="69" stroke="#cc9cf0" stroke-width="3" marker-end="url(#arrowRibbon)"/><text x="99" y="70" fill="#cc9cf0" font-size="10">Fr</text></g>
-     </svg>
+     <p class="helper">Geometry pushes outward; Conic favors the Tilted axis; Ribbon resists changes between neighboring poses. These controls recompute the browser Warp and <strong>are not the calibrated Python M2 gains</strong>.</p>
+     <div class="force-illustration">
+       <div class="force-visual-header"><b>GEOMETRY <span>Fᵍ</span></b><small>Outward-only response</small></div>
+       <svg viewBox="0 0 300 103" class="force-visual-svg" role="img" aria-label="Geometry illustration: an outward normal pushes a penetrating rod point above a wavy surface">
+         <defs><marker id="headGeoV5" markerWidth="8" markerHeight="8" refX="6.7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 4 L0 8 Z" fill="#54e4d4"/></marker></defs>
+         <path d="M10 76 Q70 47 138 68 T290 70 L290 102 L10 102 Z" fill="#314d62" fill-opacity=".60" stroke="#729db4" stroke-width="2"/>
+         <path d="M135 93 L159 51" stroke="#ffac95" stroke-width="6" stroke-linecap="round"/>
+         <circle cx="152" cy="63" r="4.5" fill="#e9b6a6"/>
+         <line x1="152" y1="62" x2="152" y2="21" stroke="#678c92" stroke-width="1.5" stroke-dasharray="4 4"/>
+         <line id="forceGeo" x1="152" y1="61" x2="152" y2="34" stroke="#54e4d4" stroke-width="3.5" marker-end="url(#headGeoV5)"/>
+         <text x="169" y="34" fill="#54e4d4" font-size="13" font-weight="700">Fᵍ</text>
+         <text x="12" y="16" fill="#8fb8cb" font-size="10">surface normal ↑</text>
+       </svg>
+     </div>
      <label class="slider-row">Geometry · outward <output id="geometryVal">1.00×</output><input id="geometryGain" type="range" min="0.1" max="4" step="0.1" value="1" /></label>
-     <p class="parameter-hint">穿透越深，排斥越强；只沿外法线，不会从曲面背面反推。</p>
+     <p class="parameter-hint">Deeper penetration increases repulsion. Corrections act toward the outward normal only.</p>
+     <div class="force-illustration conic-illustration">
+       <div class="force-visual-header"><b>CONIC RESTORING <span>Fᶜ</span></b><small>Pull the tool toward the nominal axis</small></div>
+       <svg viewBox="0 0 300 192" class="force-visual-svg" role="img" aria-label="Large conic half-angle and a restoring force arrow directed toward the tilted tool axis; arrow length increases with the restoring gain">
+         <defs>
+           <linearGradient id="conicFillV5" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7ac6ed" stop-opacity=".10"/><stop offset="1" stop-color="#66c5e3" stop-opacity=".31"/></linearGradient>
+           <marker id="headConicV5" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 4 L0 8 Z" fill="#f4ca84"/></marker>
+         </defs>
+         <path id="conicFan" d="M150 164 L70 68 A123 123 0 0 1 230 68 Z" fill="url(#conicFillV5)" stroke="#6bb4df" stroke-opacity=".65" stroke-width="1.7"/>
+         <line id="conicLeft" x1="150" y1="164" x2="70" y2="68" stroke="#8ec7e8" stroke-dasharray="5 4" stroke-width="1.8"/>
+         <line id="conicRight" x1="150" y1="164" x2="230" y2="68" stroke="#8ec7e8" stroke-dasharray="5 4" stroke-width="1.8"/>
+         <line x1="150" y1="164" x2="150" y2="23" stroke="#b8e3f5" stroke-width="2.1" stroke-dasharray="5 4"/>
+         <line x1="150" y1="164" x2="205" y2="43" stroke="#ffb3a5" stroke-width="5.5" stroke-linecap="round"/>
+         <circle cx="150" cy="164" r="5" fill="#d7e9fa"/>
+         <text x="159" y="178" fill="#c3ddeb" font-size="10">A0</text>
+         <text x="109" y="16" fill="#a9d9f4" font-size="10">Tilted axis</text>
+         <text x="210" y="38" fill="#ffb3a5" font-size="10">Tool</text>
+         <path id="coneBetaArc" d="M150 134 A30 30 0 0 1 169 140" fill="none" stroke="#c1a2f6" stroke-width="1.5" />
+         <text id="coneBetaLabel" x="165" y="127" fill="#d3b8fa" font-size="11">β 40°</text>
+         <line id="forceCone" x1="215" y1="91" x2="195" y2="91" stroke="#f4ca84" stroke-width="4" stroke-linecap="round" marker-end="url(#headConicV5)"/>
+         <text id="forceConeLabel" x="188" y="83" fill="#f4ca84" font-size="14" font-weight="800">Fᶜ</text>
+         <text x="12" y="183" fill="#8faec1" font-size="10">β changes cone width · Fᶜ changes arrow length</text>
+       </svg>
+     </div>
      <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="85" value="40" step="1" /></label>
      <label class="slider-row">Conic restoring <output id="conicVal">1.00×</output><input id="conicGain" type="range" min="0" max="4" step="0.1" value="1" /></label>
-     <p class="parameter-hint">锥角决定最大允许偏离；恢复权重越大，越倾向保持 Tilted 姿态。</p>
+     <p class="parameter-hint">β controls the allowed cone; Fᶜ pulls orientation back toward the Tilted axis. The arrow shows <em>relative</em> gain, not measured force.</p>
+     <div class="force-illustration ribbon-illustration">
+       <div class="force-visual-header"><b>RIBBON TENSION <span>Fʳ</span></b><small>Loose arc → taut, shallow arc</small></div>
+       <svg viewBox="0 0 300 150" class="force-visual-svg" role="img" aria-label="Semicircular ribbon between fixed endpoints becomes flatter as tension increases; arrows depict the pulling strength">
+         <defs><marker id="headRibbonV5" markerWidth="8" markerHeight="8" refX="6.6" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 4 L0 8 Z" fill="#d6a7fb" /></marker></defs>
+         <path d="M36 121 C36 0 264 0 264 121" fill="none" stroke="#586d85" stroke-width="2" stroke-dasharray="5 6" opacity=".55" />
+         <path id="ribbonArc" d="M36 121 C36 52 264 52 264 121" fill="none" stroke="#d6a7fb" stroke-width="4.8" stroke-linecap="round"/>
+         <circle cx="36" cy="121" r="5" fill="#f5d8ff"/><circle cx="264" cy="121" r="5" fill="#f5d8ff"/>
+         <line id="ribbonPullLeft" x1="36" y1="121" x2="18" y2="121" stroke="#d6a7fb" stroke-width="2.5" marker-end="url(#headRibbonV5)"/>
+         <line id="ribbonPullRight" x1="264" y1="121" x2="282" y2="121" stroke="#d6a7fb" stroke-width="2.5" marker-end="url(#headRibbonV5)"/>
+         <text id="ribbonShapeLabel" x="150" y="90" text-anchor="middle" fill="#d6a7fb" font-size="12" font-weight="750">Gentle tension</text>
+         <text x="11" y="143" fill="#91afc3" font-size="9">fixed A0</text><text x="248" y="143" fill="#91afc3" font-size="9">fixed A0</text>
+       </svg>
+       <p class="force-visual-foot">Illustrative arc: SPGA Ribbon tension preserves neighboring pose relationships; it does not literally flatten the nominal path.</p>
+     </div>
      <label class="slider-row">Ribbon tension <output id="tensionVal">0.60×</output><input id="tensionGain" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
      <label class="slider-row">Ribbon bending <output id="bendingVal">0.35×</output><input id="bendingGain" type="range" min="0" max="3" step="0.05" value="0.35" /></label>
-     <p class="parameter-hint">Tension 保持相邻姿态差；Bending 抑制急剧弯折。两者属于 Ribbon。</p>
-     <div class="balance-caption" id="balanceCaption">调节参数后可重新观察 Warp。</div>
+     <p class="parameter-hint">Tension preserves relationships between neighboring poses; bending discourages sharp changes. Both belong to Ribbon.</p>
+     <div class="balance-caption" id="balanceCaption">Adjust the parameters to see the Warp update.</div>
    </section>
    <section class="card"><div class="section-head">VISIBLE LAYERS</div>
       <label class="layer"><span><i class="dot terrain"></i> Surface mesh</span><input id="layerSurface" type="checkbox" checked /></label>
@@ -131,21 +170,40 @@
       <label class="layer"><span><i class="dot warped"></i> Warped tool</span><input id="layerWarp" type="checkbox" checked /></label>
    </section>
    <section class="card insight"><div class="section-head">HOW IT WORKS</div>
-      <div class="insight-step"><span>①</span><p><b>Sketch → surface</b><br/>把 2D 轮廓沿 Z 拉伸，或选择 Hill / Saddle。</p></div>
-      <div class="insight-step"><span>②</span><p><b>Slice → guide</b><br/>调整切割平面以选择曲面接触引导线。</p></div>
-      <div class="insight-step"><span>③</span><p><b>Nominal → Tilted</b><br/>绘制 2D/3D 技能，端点等距放置在 Guide；内部点保持相似形状，不贴表面。</p></div>
-      <div class="insight-step"><span>④</span><p><b>Warp → compare</b><br/>保持 A0 与棒长，展示姿态修正和穿透差异。</p></div>
+      <div class="insight-step"><span>①</span><p><b>Sketch → surface</b><br/>Extrude a 2D profile along the depth axis, or choose Hill / Saddle.</p></div>
+      <div class="insight-step"><span>②</span><p><b>Slice → guide</b><br/>Move or rotate the cutting plane to choose a surface guide path.</p></div>
+      <div class="insight-step"><span>③</span><p><b>Nominal → Tilted</b><br/>Draw or import a 2D/3D skill. Place its contact endpoints at equal arc-length intervals along the Guide while retaining the interior shape.</p></div>
+      <div class="insight-step"><span>④</span><p><b>Warp → compare</b><br/>Keep contact anchors and rod length while comparing changed orientations and penetration.</p></div>
    </section>
-   <div class="footnote">SPGA-M2 INSPIRED DEMONSTRATOR<br/>Client-side, static GitHub Pages compatible.</div>
+   <div class="footnote">SPGA-M2 INSPIRED VISUALIZATION<br/>Client-side, static GitHub Pages compatible.</div>
  </aside>
 </main>
 <div class="modal-backdrop" id="drawModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-heading"><div><div class="eyebrow">FREEHAND INPUT</div><h2 id="modalTitle">Draw 2D profile</h2></div><button id="btnCloseModal" class="icon-btn">✕</button></div>
-    <p id="modalHelp" class="helper">画一条从左到右的曲面侧轮廓。绘制完成后会沿深度方向拉伸。</p>
+    <p id="modalHelp" class="helper">Draw a left-to-right surface profile. It will be extruded along the depth axis.</p>
     <div class="draw-zone"><canvas id="drawCanvas" width="860" height="370"></canvas><div class="draw-axis"><span>START</span><span>END →</span></div></div>
     <div class="modal-footer"><span id="drawStatus">Drag to draw</span><div><button id="btnDrawClear" class="outline">Clear</button><button id="btnDrawDefault" class="outline">Example</button><button id="btnDrawApply" class="action-primary">Use this drawing →</button></div></div>
   </div>
+</div>
+<!-- Beginner tutorial confirmation and guided overlay -->
+<div class="tutorial-confirm-backdrop" id="tutorialConfirm" hidden>
+  <div class="tutorial-confirm" role="dialog" aria-modal="true" aria-labelledby="tutorialConfirmTitle" aria-describedby="tutorialConfirmText">
+    <div class="tutorial-badge">✦ QUICK START</div>
+    <h2 id="tutorialConfirmTitle">Follow the beginner tutorial?</h2>
+    <p id="tutorialConfirmText">Walk through Surface, Guide, Nominal, Tilted, Warp and the result controls. You can try the highlighted tools as you go. The tutorial will not reset your scene.</p>
+    <div class="tutorial-confirm-actions"><button id="tutorialNotNow" class="outline">Not now</button><button id="tutorialStart" class="action-primary">Start tutorial →</button></div>
+  </div>
+</div>
+<div class="tutorial-shade" id="tutorialShade" hidden aria-hidden="true"></div>
+<div id="tutorialCoach" class="tutorial-coach" role="dialog" aria-modal="false" aria-labelledby="tutorialStepTitle" hidden>
+  <div class="tutorial-coach-top"><span class="tutorial-badge">✦ INTERACTIVE GUIDE</span><button id="tutorialExit" class="tutorial-close" aria-label="Exit tutorial">✕</button></div>
+  <div class="tutorial-progress" id="tutorialProgress">STEP 1 OF 7</div>
+  <h2 id="tutorialStepTitle"></h2>
+  <p id="tutorialStepText"></p>
+  <div class="tutorial-tip" id="tutorialStepTip"></div>
+  <div class="tutorial-dots" id="tutorialDots" aria-hidden="true"></div>
+  <div class="tutorial-coach-actions"><button id="tutorialSkip" class="tutorial-skip">Skip</button><div><button id="tutorialBack" class="outline">← Back</button><button id="tutorialNext" class="action-primary">Next →</button></div></div>
 </div>
 <input id="fileImport" type="file" accept=".csv,text/csv" hidden>
 <script type="module" src="./src/app.js"></script>
