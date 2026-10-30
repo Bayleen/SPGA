@@ -1,0 +1,7 @@
+# SPGA Web Lab v4 — 2026-10-30
+
+- Removed generation-stage locking. Orbit changes only camera; explicit Move/Rotate edits surface, and 3D edit drags nominal control handles. All edits regenerate Tilted immediately, with an existing Warp recomputed after 125 ms of input idle plus solve time.
+- Every repetition shows exactly three interior edit handles (25/50/75% of source samples); shared nominal shape updated by endpoint-fixed C1 Hermite deformation. Extra visual Catmull-Rom rendering smooths the white A0 line without changing computation samples.
+- Added click-to-select pose and selected pose inspector, including tool-axis angle change, penetration and A1 shift. Display the selected pose's conic at A0; Focus one pose hides distracting background rods. This is a geometric visualization of the browser demo's cone boundary and outward-only candidate rule.
+- Right-side Force Balance sliders recompute the demo search, with per-change statistics and Avoid collision / Preserve skill presets. Some changes can produce identical poses due to discrete candidate search or poses with no collision.
+- Keep scientific caveat: browser solver remains a simplified one-sided heightfield geometric search. It is NOT the full archived Python SPGA-M2 generalized-force balance solver.
