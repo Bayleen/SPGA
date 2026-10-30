@@ -21,3 +21,41 @@ input:disabled{opacity:.52;cursor:not-allowed}
 @keyframes force-flow{to{stroke-dashoffset:-22}}
 .balance-caption{font-size:10px;background:#122b33;border:1px solid #286069;border-radius:8px;padding:9px;color:#92c9c5;line-height:1.5;margin-top:12px}
 .right{scrollbar-width:thin}
+
+/* V5 onboarding — non-blocking spotlight with accessible step controls. */
+.topactions .tutorial-trigger{color:#e5fff7;border:1px solid #3c9a91;background:linear-gradient(110deg,#174a50,#224a70);font-weight:800;white-space:nowrap}
+.topactions .tutorial-trigger:hover{border-color:#84f2e1;background:#205b63}
+.tutorial-confirm-backdrop{position:fixed;inset:0;display:grid;place-items:center;padding:20px;background:#030b14cc;backdrop-filter:blur(6px);z-index:105}
+.tutorial-confirm-backdrop[hidden],.tutorial-shade[hidden],.tutorial-coach[hidden]{display:none}
+.tutorial-confirm{background:#122235;border:1px solid #4a8091;border-radius:17px;padding:28px;max-width:490px;width:100%;box-shadow:0 30px 90px #000b}
+.tutorial-confirm h2,.tutorial-coach h2{margin:12px 0 10px;font-size:22px;line-height:1.25}
+.tutorial-confirm p,.tutorial-coach p{color:#a9c4d2;line-height:1.65;font-size:13px;margin:0 0 15px}
+.tutorial-badge{color:#73eee3;font-size:10px;font-weight:900;letter-spacing:1.4px}
+.tutorial-confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}
+.tutorial-confirm-actions button,.tutorial-coach-actions button{font-size:12px;padding:10px 13px}
+.tutorial-shade{position:fixed;inset:0;z-index:60;pointer-events:none;background:#030c173d}
+.tutorial-focus{position:relative!important;z-index:70!important;outline:2px solid #7ef3e8!important;outline-offset:4px;box-shadow:0 0 0 5px #4edbd72c,0 0 30px #2bc7bd7d!important;border-radius:10px}
+.tutorial-coach{position:fixed;z-index:90;width:min(346px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;padding:19px 19px 16px;background:#11283b;border:1px solid #5ccfc9;border-radius:15px;box-shadow:0 26px 66px #000b,0 0 0 1px #9cebe41c}
+.tutorial-coach-top{display:flex;justify-content:space-between;align-items:center}
+.tutorial-close{color:#bfd8e1;border:1px solid #376272;border-radius:6px;padding:5px 8px;background:#203c4d}
+.tutorial-progress{color:#a1b9c9;font-size:10px;letter-spacing:1.3px;margin-top:14px;font-weight:800}
+.tutorial-coach h2{font-size:18px;margin-top:8px}
+.tutorial-tip{font-size:11px;color:#a9d9d4;line-height:1.55;padding:10px;border:1px solid #285b63;background:#0c2732;border-radius:9px;margin:12px 0}
+.tutorial-dots{display:flex;gap:5px;margin:14px 0 17px}
+.tutorial-dots span{width:19px;height:4px;background:#36566a;border-radius:8px;flex:1}
+.tutorial-dots span.active{background:#7ce8da}.tutorial-dots span.visited{background:#538a94}
+.tutorial-coach-actions{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.tutorial-coach-actions>div{display:flex;gap:6px}.tutorial-skip{font-size:11px;color:#9db5c9;padding:7px 4px}
+@media(max-width:980px){.topmiddle{display:none}.topbar{padding:0 12px}.topactions{gap:4px}.topactions button{padding:8px 9px;font-size:10px}}
+@media(max-width:620px){.topbar{height:auto;min-height:69px;flex-wrap:wrap;gap:9px;padding:9px 12px}.app{height:auto}.topactions .tutorial-trigger{padding:8px 10px}.topactions{flex:1;justify-content:flex-end}.topactions .outline{display:none}.brand small{letter-spacing:1px}.tutorial-coach{max-height:58vh}}
+
+/* v5: independent, larger illustrations for the three balance components. */
+.force-illustration{margin:13px 0 12px;background:linear-gradient(155deg,#122b3e,#0b1929);border:1px solid #2b4c63;border-radius:12px;padding:10px 9px 6px;overflow:hidden}
+.force-visual-header{display:flex;flex-direction:column;gap:3px;padding:0 5px 3px}
+.force-visual-header b{font-size:10px;letter-spacing:1.1px;color:#d4e8ee}.force-visual-header b span{font-size:15px;color:#f5c788}
+.force-visual-header small{font-size:10px;color:#8eb0c7;line-height:1.5}
+.force-visual-svg{display:block;width:100%;height:auto;max-height:195px;overflow:visible;margin-top:3px}
+.conic-illustration{border-color:#4b6678}.ribbon-illustration{border-color:#544b73}
+#ribbonArc{transition:d .22s ease}.force-visual-foot{font-size:9px;line-height:1.5;color:#91adbf;margin:0 4px 6px}
+#forceCone,#forceGeo,#ribbonPullLeft,#ribbonPullRight{stroke-dasharray:7 3;animation:force-flow 1.1s linear infinite}
+@media (prefers-reduced-motion:reduce){#forceCone,#forceGeo,#ribbonPullLeft,#ribbonPullRight{animation:none}#ribbonArc{transition:none}}
