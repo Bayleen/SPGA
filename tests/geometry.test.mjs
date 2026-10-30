@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {V,len,sub,angle,defaultProfile,defaultStroke,sampleSurface,worldFromLocal,getCut,makeContactPath,makeTilted,warpDemo,rodMetrics,analyzePath,normalizeStroke,atStroke,getMesh} from '../src/geometry.js';
+import {V,len,sub,angle,defaultProfile,defaultStroke,sampleSurface,worldFromLocal,getCut,makeContactPath,makeTilted,warpDemo,rodMetrics,analyzePath,normalizeStroke,atStroke,getMesh,rad,norm,dot,mul} from '../src/geometry.js';
 const base={type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1};
 const close=(a,b,tol=1e-8)=>assert.ok(Math.abs(a-b)<tol,`${a} != ${b}`);
 for(const type of ['hill','saddle','profile'])test(`${type} heightfield produces finite upward unit normal`,()=>{
@@ -34,3 +34,23 @@ test('zero cone deviation fixes all original tilted axes',()=>{
  for(let i=0;i<t.length;i++)close(angle(t[i].axis,w[i].axis),0,1e-7);
 });
 test('mesh has valid triangulation',()=>{const m=getMesh(base,12);assert.equal(m.verts.length,169);assert.equal(m.faces.length,288);});
+
+test('transformed mesh does not lose boundary vertices through floating-point error',()=>{
+ for(const rot of [-165,-90,15,133])for(const dx of [-2.8,-1.3,0,2.1]){
+  const state={...base,rotation:rot,offsetX:dx,offsetZ:1.7,scale:.9};
+  const mesh=getMesh(state,41);
+  assert.equal(mesh.verts.length,1764);
+  assert.ok(mesh.verts.every(p=>Number.isFinite(p.y)));
+ }
+});
+test('Tilted heading follows fixed guide direction, not freehand lateral wiggles',()=>{
+ const contacts=makeContactPath(base,defaultStroke,37,.12,67,1.2);
+ const arr=makeTilted(contacts,1.2,65,false,37);
+ const fwd=V(Math.cos(rad(37)),0,Math.sin(rad(37)));
+ for(const p of arr){
+  const tang=norm(sub(p.axis,mul(p.normal,dot(p.axis,p.normal))));
+  const expected=norm(sub(fwd,mul(p.normal,dot(fwd,p.normal))));
+  close(angle(tang,expected),0,1e-7);
+  close(angle(p.axis,p.normal),rad(65),1e-7);
+ }
+});
