@@ -5,9 +5,9 @@ const stage=$('stage'),canvas=$('sceneCanvas'),ctx=canvas.getContext('2d',{alpha
 const sketch=$('drawCanvas'),dc=sketch.getContext('2d');
 const state={surface:{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1},
  stroke:defaultStroke,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:65,coneAngle:40,reverse:false,
- mode:'orbit',cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)},mesh:null,cut:null,contacts:[],tilted:[],warped:[],pose:0,
+ mode:'orbit',viewLocked:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)},mesh:null,cut:null,contacts:[],tilted:[],warped:[],pose:0,
  playing:false,playClock:0,showBoth:true,planeVisible:true,gridVisible:true,
- layers:{surface:true,plane:true,guide:true,nominal:true,tilt:true,warp:true},drag:null,dirty:true};
+ layers:{surface:true,plane:true,guide:true,nominal:false,tilt:true,warp:true},drag:null,dirty:true};
 let W=800,H=580,dpr=1,drawType='profile',drawRaw=[],drawActive=false,toastTimer=null;
 function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3300);}
 function invalidate(recreateMesh=false){if(recreateMesh)state.mesh=getMesh(state.surface,41);state.cut=getCut(state.surface,state.cutAngle,state.cutOffset);state.contacts=[];state.tilted=[];state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';updateMetric();updateFrame();state.dirty=true;}
@@ -31,8 +31,9 @@ function updateFrame(){const max=Math.max(0,state.tilted.length-1,state.warped.l
 function generateTilted(announce=true){
  state.contacts=makeContactPath(state.surface,state.stroke,state.cutAngle,state.cutOffset,67,state.amplitude);
  if(state.contacts.length<3){toast('路径超出了曲面范围。调整切割平面或缩小 Stroke width。');return false;}
- state.tilted=makeTilted(state.contacts,state.rodLength,state.tiltAngle,state.reverse);
+ state.tilted=makeTilted(state.contacts,state.rodLength,state.tiltAngle,state.reverse,state.cutAngle);
  state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';updateMetric();updateFrame();state.dirty=true;
+ if(announce)lockScene();
  if(announce)toast(`生成 ${state.tilted.length} 个 Tilted poses。A0 位于曲面接触路径上。`);
  return true;
 }
@@ -40,8 +41,38 @@ function warp(announce=true){
  if(!state.tilted.length&&!generateTilted(false))return;
  const result=warpDemo(state.tilted,state.surface,state.rodLength,state.coneAngle);
  state.warped=result.warped;updateMetric();updateFrame();state.dirty=true;
+ if(announce)lockScene();
  if(announce)toast(`Warp 完成：${state.warped.length} 个 poses，剩余 ${result.failure} 个碰撞姿态（采样近似）。`);
 }
+const editControls=['surfaceX','surfaceZ','surfaceRot','surfaceScale','cutAngle','cutOffset','strokeAmp',
+ 'rodLength','tiltAngle','coneAngle','reverseTool','btnDrawSurface','btnGuide','btnDrawTraj'];
+function updateEditorLock(){
+ const locked=state.viewLocked;
+ for(const id of editControls)$(id).disabled=locked;
+ for(const b of $('surfaceOptions').querySelectorAll('button'))b.disabled=locked;
+ $('btnModeMove').disabled=locked;
+ $('btnModeRotate').disabled=locked;
+ $('btnEditScene').hidden=!locked;
+ $('editModeHint').textContent=locked?
+  '🔒 已生成：拖动只调整视角；如需移动模型或修改参数，点 Edit scene。':
+  '编辑阶段：可以 Move / Rotate 曲面。生成 Tilted 后自动进入只读查看。';
+}
+function lockScene(){
+ state.viewLocked=true;
+ state.mode='orbit';
+ setMode('orbit');
+ updateEditorLock();
+ state.drag=null;
+ canvas.classList.remove('dragging');
+}
+function unlockScene(){
+ state.viewLocked=false;
+ updateEditorLock();
+ setMode('orbit');
+ invalidate(); // Old poses are tied to the previous surface/nominal placement.
+ toast('已进入编辑模式；原 Tilted/Warped 已清除，修改后重新生成。');
+}
+$('btnEditScene').addEventListener('click',unlockScene);
 function resize(){const r=stage.getBoundingClientRect();dpr=Math.min(2,window.devicePixelRatio||1);W=Math.max(240,r.width);H=Math.max(260,r.height);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);state.dirty=true;}
 new ResizeObserver(resize).observe(stage);
 function makeCamera(){const c=state.cam,t=c.target,cos=Math.cos(c.el);
@@ -176,18 +207,18 @@ $('btnHome').addEventListener('click',()=>{state.cam={az:.70,el:.57,distance:14.
 $('btnGrid').addEventListener('click',e=>{state.gridVisible=!state.gridVisible;e.currentTarget.classList.toggle('on',state.gridVisible);state.dirty=true;});
 $('btnPlane').addEventListener('click',e=>{state.planeVisible=!state.planeVisible;e.currentTarget.classList.toggle('on',state.planeVisible);state.dirty=true;});
 for(const [id,key] of [['layerSurface','surface'],['layerPlane','plane'],['layerGuide','guide'],['layerNominal','nominal'],['layerTilt','tilt'],['layerWarp','warp']])$(id).addEventListener('change',e=>{state.layers[key]=e.target.checked;state.dirty=true;});
-function setMode(mode){state.mode=mode;for(const [id,m] of [['btnModeOrbit','orbit'],['btnModeMove','move'],['btnModeRotate','rotate']])$(id).classList.toggle('active',mode===m);$('stageHelp').textContent={orbit:'DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT + DRAG TO PAN',move:'DRAG TO MOVE SURFACE · SCROLL TO ZOOM',rotate:'DRAG HORIZONTALLY TO ROTATE SURFACE'}[mode];}
+function setMode(mode){if(state.viewLocked&&mode!=='orbit'){toast('结果已锁定。点 Edit scene 后才能移动/旋转曲面。');return;}state.mode=mode;for(const [id,m] of [['btnModeOrbit','orbit'],['btnModeMove','move'],['btnModeRotate','rotate']])$(id).classList.toggle('active',mode===m);$('stageHelp').textContent={orbit:'DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT + DRAG TO PAN',move:'DRAG TO MOVE SURFACE · SCROLL TO ZOOM',rotate:'DRAG HORIZONTALLY TO ROTATE SURFACE'}[mode];}
 for(const [id,mode] of [['btnModeOrbit','orbit'],['btnModeMove','move'],['btnModeRotate','rotate']])$(id).addEventListener('click',()=>setMode(mode));
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);state.drag={x:e.clientX,y:e.clientY,button:e.button,shift:e.shiftKey};canvas.classList.add('dragging');});
 canvas.addEventListener('pointermove',e=>{
  const d=state.drag;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;d.x=e.clientX;d.y=e.clientY;
  const cam=state.cam;
- if(state.mode==='move'){
+ if(!state.viewLocked&&state.mode==='move'){
   const scale=.018*cam.distance/14.8;
   state.surface.offsetX=clamp(state.surface.offsetX+(dx*Math.cos(cam.az)+dy*Math.sin(cam.az))*scale,-2.8,2.8);
   state.surface.offsetZ=clamp(state.surface.offsetZ+(-dx*Math.sin(cam.az)+dy*Math.cos(cam.az))*scale,-2.8,2.8);
   $('surfaceX').value=state.surface.offsetX;$('surfaceZ').value=state.surface.offsetZ;invalidate(true);updateUI();
- }else if(state.mode==='rotate'){
+ }else if(!state.viewLocked&&state.mode==='rotate'){
   state.surface.rotation=clamp(state.surface.rotation+dx*.35,-180,180);$('surfaceRot').value=state.surface.rotation;invalidate(true);updateUI();
  }else if(e.shiftKey||d.shift){const basis=makeCamera();cam.target=add(cam.target,add(mul(basis.r,-dx*.012*cam.distance/14),mul(basis.u,dy*.012*cam.distance/14)));state.dirty=true;
  }else{cam.az-=dx*.006;cam.el=clamp(cam.el+dy*.005,.15,1.43);state.dirty=true;}
@@ -228,8 +259,9 @@ function exportProject(){
 $('btnExport').addEventListener('click',exportProject);
 $('btnReset').addEventListener('click',()=>{Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:defaultStroke,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:65,coneAngle:40,reverse:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
  for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['rodLength',1.2],['tiltAngle',65],['coneAngle',40]])$(id).value=n;
- $('reverseTool').checked=false;invalidate(true);updateUI();generateTilted(false);warp(false);toast('已恢复默认 Hill 示例。');});
+ $('reverseTool').checked=false;invalidate(true);state.viewLocked=false;updateEditorLock();setMode('orbit');updateUI();toast('已恢复默认 Hill 场景；可编辑后 Generate Tilted → Warp。');});
 
-// Make default page immediately illustrative; clicks still fully regenerate output.
-state.mesh=getMesh(state.surface,41);updateGuide();generateTilted(false);warp(false);updateUI();resize();requestAnimationFrame(loop);
+// Start in edit mode with a ready-to-use Hill & Guide, but NO generated poses.
+// Once the user clicks Generate Tilted or Warp, geometry is locked for viewing.
+state.mesh=getMesh(state.surface,41);updateGuide();updateEditorLock();updateUI();resize();requestAnimationFrame(loop);
 window.__spga={state,generateTilted,warp,analyzePath,exportProject,updateGuide};
