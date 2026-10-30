@@ -1,76 +1,52 @@
-# SPGA Interactive Web Lab — v4 (Always-live Editor + Per-pose Conic)
+# SPGA — Interactive Pose Warping
 
-Browser-only 3D educational demonstrator for skill-preserving pose placement and collision-aware pose correction. Publishable on **GitHub Pages** (no Python server needed).
+A static, browser-based demonstration of **Skill-Preserving Geometric Adaptation (SPGA)**, ready for GitHub Pages. The browser uses a simplified visual solver, **not** the archived Python SPGA-M2 force-balance implementation.
 
-## Critical semantics
+## Beginner tutorial
 
-- **Surface:** Hill, Saddle, or a hand-drawn 2D height profile extruded into a 3D heightfield.
-- **Guide:** A surface-following curve from a vertical cutting plane; you can also hand-draw its lateral displacement. Guide is NOT the source skill.
-- **Nominal skill:** A0 positions along a learned/source shape (`u,v,w`), independent of the surface, with per-pose `contact` flags. A1 derives from A0 plus a fixed-length tool axis, not another copy of the guide.
-- **Tilted:** Each individual learned primitive is placed between two equal-arc-length guide anchors using **one global similarity transform per primitive** (rotation, translation, and one uniform scale to match guide chord length). Interior samples are NOT individually projected to the surface; the full shape is preserved up to that uniform scale. This matches the key *placement principle* of the SPGA Python code; it is not a complete SE(3) transfer implementation.
-- **Warp:** Browser-only approximate collision-aware orientation search. Marked A0 contact anchors are unchanged. Non-contact A0 may receive a limited lift if the rod still collides; length and cone are respected. **Not the archived SPGA-M2 force-balance / ribbon solver**. Do not use as validated research results.
+Select **Beginner Tutorial** in the top bar, confirm **Start tutorial**, and follow the seven highlighted steps. The tutorial does not reset the scene and allows visitors to interact with each control. Use **Next**, **Back**, **Skip**, or **Escape**.
 
-## Usage — v4: Always editable, no lock mode
+1. **Surface:** choose Hill or Saddle, or draw a 2D profile extruded into 3D. Orbit to view; Move / Rotate to edit the surface.
+2. **Guide:** move/rotate the cutting plane and choose the yellow curve where the skill will be placed.
+3. **Nominal:** draw or import a 2D/3D A0 skill; contact anchors are at the endpoints for lifted skills. The three white handles create a C¹-smooth curve. All-contact mode follows Guide as A0 and allows an A1 orientation sketch.
+4. **Tilted:** place repeated nominal primitives along the Guide; the interior A0 points are not projected onto the target surface.
+5. **Warp:** compute an outward-only geometric correction with approximate Conic and Ribbon trade-offs.
+6. **Playback:** select poses, view a single cone, and compare Tilted with Warped rods.
+7. **Force Balance:** adjust Geometry, cone half-angle, Conic restoring, Ribbon tension and Ribbon bending; the browser recomputes the example live.
 
-1. Pick Hill / Saddle / drawn profile, change Surface X/Z/rotation or Cut Plane/Guide. Use **Orbit** for camera-only dragging; **Move** and **Rotate** explicitly manipulate the surface.
-2. Draw a separate Nominal (2D or CSV 3D Spiral). Click **3D edit**: every repeated primitive displays **exactly three interior white handles**. Drag any handle to reshape that position for **all repeats**; contact endpoints remain on the Guide. **Brush curve tension** controls the C1 cubic handle deformation. The displayed white A0 path uses a smoother visual brush line; collision solving still uses the original discrete poses.
-3. Click **Generate Tilted**, then **Warp**. **Nothing locks**: changing the surface, guide, repeat count, nominal handles or tool angle/length updates Tilted immediately, and an existing Warp recalculates after a short debounce (~125 ms plus solve time). The currently selected pose is preserved wherever possible.
-4. Turn on **Show selected conic** and **Focus one pose**. Click a tool/trajectory point in the scene or use the playback slider to choose which pose's A0, tilted axis, cone half-angle and warped axis to inspect. Turn Focus off for all sampled rods.
-5. Right-side **Geometry / Conic / Ribbon** sliders change the browser demo objective. Use Avoid collision / Preserve skill presets to find a clearly affected pose; the inspector shows changed-pose count, difference in axes, A1, and penetration. Slider plateaus are possible because search is discrete. These are **demo weights, not validated Python M2 gains**.
-6. In **All-contact**, the full Guide is A0 contact; **Draw A1 orientation** alters tool direction along the guide.
+## Main features
 
-### CSV format
+- In-browser 3D viewer, interactive surface transforms, 2D surface profile sketches, and Hill / Saddle presets.
+- Independent Guide and Nominal paths; lifted-skill and all-contact modes.
+- 3D spiral, half-circle, freehand Nominal and ordered CSV importing. See `examples/nominal_3d_spiral.csv`.
+- Selectable poses with Conic visualization; live tool angle (0–180° relative to surface tangent) and length changes.
+- Real-time demonstration balance sliders, trajectory playback, geometry diagnostics, and JSON export.
+- No application backend: works on static hosting such as GitHub Pages.
 
-UTF-8 comma-separated, with header, 3–3000 rows:
+## Run locally
 
-```csv
-u,v,w,contact
-0,0,0,1
-0.25,0.30,0.15,0
-0.5,0.42,-0.12,0
-0.75,0.30,0.15,0
-1,0,0,1
+Open via any local HTTP server (ES modules require HTTP, not `file://`):
+
+```bash
+python3 -m http.server 8000
 ```
 
-- `u`: canonical displacement along the source skill's endpoint chord.
-- `v`: height/lift in the nominal sketch plane.
-- `w`: lateral 3D displacement (spiral and other non-planar skills).
-- `contact`: `1` for START/END only in Lifted skill mode; only endpoint anchors are supported in this placement version. Invalid intermediary contact flags are rejected rather than silently ignored.
-- Optional `ax,ay,az` gives a **per-pose unit tool axis in source u/v/w coordinates**, which is rotated during Tilted placement, not used as an A1 absolute point. Without it, a single tool tilt parameter controls the primitive.
-- All numeric coordinates are arbitrary canonical **display units**, not meters. A0 is the source trajectory, not a surface-following guide. Contact endpoints are always fixed.
-- Data is displayed **in row order**: repeated X, reversed segments, loops and coils are preserved. `u` need not be monotonic.
-- The source endpoint chord must be nonzero. Shape similarity includes uniform scale when target anchor chord differs from the source chord.
+Then visit `http://localhost:8000`. Run the geometry tests with `npm test` (Node.js required).
 
-## Engineering details
+## Deploy to GitHub Pages
 
-- Plain static ES modules: `src/geometry.js` contains geometry and browser solver, `src/app.js` contains editing/visualization.
-- Surface uses a height-field rendering and collision sampling (not exact arbitrary 3D mesh collision).
-- The stroke-to-skill conversion uses cumulative 3D arc length for resampling, not `x` sorting; freehand loops won't collapse into a wave.
-- No stage-dependent lock: Orbit always changes camera only; Move/Rotate and 3D edit explicitly change geometry while generated results stay up to date.
-- Run `npm test` (Node 20+); no npm dependencies are needed.
-- External researchers should use the archived Python SPGA-M2 for formal evaluations; this site is for interaction and pedagogy.
+Use `Settings → Pages → Deploy from a branch`, choose `main` and `/(root)`. After deployment the site will be available at your repository's Pages URL.
 
-## GitHub Pages
+## Research boundary
 
-For a public repository, select `Settings → Pages → Deploy from a branch → main → / (root)`.
+The browser weights and the simplified pose search demonstrate qualitative SPGA trade-offs, but they are **not** calibrated to the fixed research solver. Collision checks sample the rendered rod and are not a formal safety guarantee. For quantitative scientific results, run the archived Python SPGA-M2 implementation.
 
-## License
+## Force visualizations (v5)
 
-See `LICENSE`.
+The right-hand **Force Balance** section presents three independent SVG diagrams that respond immediately to the sliders:
 
+- **Geometry (Fᵍ)** shows an outward normal correction arrow. Increasing Geometry enlarges the arrow.
+- **Conic restoring (Fᶜ)** shows a large cone centered on the Tilted tool axis. **Cone half-angle β** changes the cone aperture; **Conic restoring** lengthens the arrow that points toward its center axis.
+- **Ribbon tension (Fʳ)** shows a semicircular ribbon becoming shallower as the tension slider increases, with larger outward pull arrows. This is a **visual metaphor**, not a claim that the SPGA Ribbon term geometrically flattens the nominal trajectory; the actual term penalizes changes between adjacent poses.
 
-## v3 historical note: tool and one-sided geometry (2026-10-30)
-
-**Superseded by v4:** surface, guide, nominal, tool, and balance inputs are all editable at any stage. Tool length and surface-relative angle (0–180°) recompute Tilted/previous Warp after edits. `0°=forward tangent`, `90°=outward normal`, `180°=backward tangent`. For imported CSV tool axes, the angle slider applies a common offset from its reference `25°`.
-
-The right panel exposes **browser-demo weights** for geometry, conic, ribbon tension and bending and a cone half-angle; these coefficients are *not* the calibrated Python SPGA-M2 coefficients. Browser warp still uses independent candidate pose search, with predecessor-based ribbon-like scoring, and separate optional A0 lift for noncontact poses. It is **not** the full M2 dual-rail force-balance algorithm. Surface signed-height is a one-sided height-field approximation: negative points are treated as penetration and outward normals always point above the surface. No underside/second-sided normal is used.
-
-The demo's penetration term increases quadratically with depth. It is stronger for deeper penetration, but cone and ribbon penalties mean complete removal is not mathematically guaranteed.
-
-## v4 notes — live editing, selected cone, three brush handles
-
-- All source scene controls remain enabled after generating Tilted/Warp; only Orbit moves the camera.
-- Three C1 interior brush handles per repeated primitive; shared source skill changes apply to each repeat.
-- One selected pose's cone can be visualized at A0, with the selected tilted and warped tool.
-- Right-side weights affect the browser candidate-search objective; at poses without penetration, many values can produce the same solution.
-- Solver is illustrative and client-side; **do not mistake it for the exact M2 force-balance solver**.
+Illustrated arrows are proportional to the **browser control values**, not measured physical force. The independent tutorial's final step explains how to use them. These illustrations do not modify the frozen Python solver.
