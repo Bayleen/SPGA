@@ -1,17 +1,18 @@
-import {V,add,sub,mul,dot,cross,len,norm,mix,clamp,rad,angle,defaultProfile,defaultStroke,normalizeStroke,atStroke,smoothStroke,sampleSurface,worldFromLocal,getMesh,getCut,makeContactPath,makeTilted,rodMetrics,warpDemo,analyzePath} from './geometry.js';
+import {V,add,sub,mul,dot,cross,len,norm,mix,clamp,rad,angle,defaultProfile,defaultStroke,normalizeStroke,atStroke,smoothStroke,sampleSurface,worldFromLocal,getMesh,getCut,makeContactPath,makeTilted,rodMetrics,warpDemo,analyzePath,sketchToSkill,makeSkillExample,parseNominalCSV,buildGuide,placeNominal,placeContactGuide} from './geometry.js';
 
 const $ = id=>document.getElementById(id);
 const stage=$('stage'),canvas=$('sceneCanvas'),ctx=canvas.getContext('2d',{alpha:false});
 const sketch=$('drawCanvas'),dc=sketch.getContext('2d');
 const state={surface:{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1},
- stroke:defaultStroke,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:65,coneAngle:40,reverse:false,
+ stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',a1Stroke:null,repeats:3,edit3D:false,selected:15,preview:null,guide:null,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,
  mode:'orbit',viewLocked:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)},mesh:null,cut:null,contacts:[],tilted:[],warped:[],pose:0,
  playing:false,playClock:0,showBoth:true,planeVisible:true,gridVisible:true,
- layers:{surface:true,plane:true,guide:true,nominal:false,tilt:true,warp:true},drag:null,dirty:true};
+ layers:{surface:true,plane:true,guide:true,nominal:true,tilt:true,warp:true},drag:null,dirty:true};
 let W=800,H=580,dpr=1,drawType='profile',drawRaw=[],drawActive=false,toastTimer=null;
 function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3300);}
-function invalidate(recreateMesh=false){if(recreateMesh)state.mesh=getMesh(state.surface,41);state.cut=getCut(state.surface,state.cutAngle,state.cutOffset);state.contacts=[];state.tilted=[];state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';updateMetric();updateFrame();state.dirty=true;}
-function updateGuide(){state.cut=getCut(state.surface,state.cutAngle,state.cutOffset);state.dirty=true;}
+function refreshPreview(){try{state.preview=state.taskMode==='skill'?placeNominal(state.nominal,state.guide,state.repeats,state.tiltAngle,state.rodLength,state.reverse):placeContactGuide(state.guide,state.rodLength,state.tiltAngle,state.reverse,state.a1Stroke);}catch(e){state.preview=null;}state.dirty=true;}
+function invalidate(recreateMesh=false){if(recreateMesh)state.mesh=getMesh(state.surface,41);state.cut=getCut(state.surface,state.cutAngle,state.cutOffset);state.guide=buildGuide(state.surface,state.stroke,state.cutAngle,state.cutOffset,181,state.amplitude);refreshPreview();state.contacts=[];state.tilted=[];state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';updateMetric();updateFrame();state.dirty=true;}
+function updateGuide(){state.cut=getCut(state.surface,state.cutAngle,state.cutOffset);state.guide=buildGuide(state.surface,state.stroke,state.cutAngle,state.cutOffset,181,state.amplitude);refreshPreview();state.dirty=true;}
 function updateMetricsText(id,v){$(id).textContent=v;}
 function updateMetric(){
  const t=state.tilted.length?analyzePath(state.tilted,state.surface,state.rodLength):null;
@@ -29,12 +30,13 @@ function updateMetric(){
 }
 function updateFrame(){const max=Math.max(0,state.tilted.length-1,state.warped.length-1);$('frameSlider').max=max;$('frameSlider').value=clamp(state.pose,0,max);$('frameVal').textContent=`Pose ${String(state.pose+1).padStart(2,'0')} / ${Math.max(1,max+1)}`;}
 function generateTilted(announce=true){
- state.contacts=makeContactPath(state.surface,state.stroke,state.cutAngle,state.cutOffset,67,state.amplitude);
- if(state.contacts.length<3){toast('路径超出了曲面范围。调整切割平面或缩小 Stroke width。');return false;}
- state.tilted=makeTilted(state.contacts,state.rodLength,state.tiltAngle,state.reverse,state.cutAngle);
- state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';updateMetric();updateFrame();state.dirty=true;
+ if(!state.guide?.points?.length){toast('请先选择有效 Guide');return false;}
+ let result;
+ try{result=state.taskMode==='skill'?placeNominal(state.nominal,state.guide,state.repeats,state.tiltAngle,state.rodLength,state.reverse):placeContactGuide(state.guide,state.rodLength,state.tiltAngle,state.reverse,state.a1Stroke);}catch(e){toast('Tilted failed: '+e.message);return false;}
+ state.tilted=result.poses;state.contacts=state.tilted.map(p=>({point:p.a0,contact:p.contact}));
+ state.warped=[];state.pose=0;state.playing=false;$('btnPlay').textContent='▶';state.edit3D=false;$('btnNominal3D').classList.remove('active');updateMetric();updateFrame();state.dirty=true;
  if(announce)lockScene();
- if(announce)toast(`生成 ${state.tilted.length} 个 Tilted poses。A0 位于曲面接触路径上。`);
+ if(announce)toast(`Tilted: ${state.tilted.length} poses; ${state.contacts.filter(p=>p.contact).length} A0 contact anchors. No pointwise surface projection.`);
  return true;
 }
 function warp(announce=true){
@@ -45,11 +47,12 @@ function warp(announce=true){
  if(announce)toast(`Warp 完成：${state.warped.length} 个 poses，剩余 ${result.failure} 个碰撞姿态（采样近似）。`);
 }
 const editControls=['surfaceX','surfaceZ','surfaceRot','surfaceScale','cutAngle','cutOffset','strokeAmp',
- 'rodLength','tiltAngle','coneAngle','reverseTool','btnDrawSurface','btnGuide','btnDrawTraj'];
+ 'rodLength','tiltAngle','coneAngle','reverseTool','btnDrawSurface','btnGuide','btnDrawGuide','btnDrawTraj','btnNominal3D','btnHalf','btnSpiral','btnImportCSV','repeats','btnDrawA1'];
 function updateEditorLock(){
  const locked=state.viewLocked;
  for(const id of editControls)$(id).disabled=locked;
  for(const b of $('surfaceOptions').querySelectorAll('button'))b.disabled=locked;
+ for(const b of $('taskModes').querySelectorAll('button'))b.disabled=locked;
  $('btnModeMove').disabled=locked;
  $('btnModeRotate').disabled=locked;
  $('btnEditScene').hidden=!locked;
@@ -59,14 +62,14 @@ function updateEditorLock(){
 }
 function lockScene(){
  state.viewLocked=true;
- state.mode='orbit';
+ state.mode='orbit';state.edit3D=false;$('btnNominal3D').classList.remove('active');
  setMode('orbit');
  updateEditorLock();
  state.drag=null;
  canvas.classList.remove('dragging');
 }
 function unlockScene(){
- state.viewLocked=false;
+ state.viewLocked=false;state.edit3D=false;
  updateEditorLock();
  setMode('orbit');
  invalidate(); // Old poses are tied to the previous surface/nominal placement.
@@ -145,7 +148,7 @@ function rodDraw(pose,color,cam,main=false,compare=false){
      if(sf&&p.y<sf.point.y-.01)circle3D(p,.055,'#ff595f',cam);
     }
   }
-  circle3D(pa,.11,'#ffe2a4',cam,'#0e1626');circle3D(pb,.075,color,cam,'#0e1626');
+  circle3D(pa,.11,pose.contact?'#8bffbf':'#ffe2a4',cam,'#0e1626');circle3D(pb,.075,color,cam,'#0e1626');
   const q=proj(pa,cam);if(q){ctx.save();ctx.font='700 11px system-ui';ctx.fillStyle='#ffffff';ctx.fillText('A0',q.x+12,q.y+12);ctx.restore();}
  }
 }
@@ -157,9 +160,21 @@ function drawScene(){
  grad.addColorStop(0,'#182b40');grad.addColorStop(.65,'#0d1a2a');grad.addColorStop(1,'#08111f');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
  const cam=makeCamera();if(state.gridVisible)drawGrid(cam);
  drawMesh(cam);drawPlane(cam);
- if(state.layers.guide&&state.cut?.points?.length)poly3D(state.cut.points.map(p=>add(p,V(0,.028,0))),'#f7c77d',3.0,.99,cam);
- if(state.layers.nominal&&state.contacts.length){
-  poly3D(state.contacts.map(c=>add(c.point,V(0,.053,0))),'#dfd7ff',2.2,.95,cam,[4,4]);
+ if(state.layers.guide&&state.guide?.points?.length)poly3D(state.guide.points.map(x=>add(x.point,V(0,.025,0))),'#f7c77d',3.0,.99,cam);
+ if(state.layers.nominal){
+   const poses=state.tilted.length?state.tilted:state.preview?.poses;
+   if(poses?.length){
+     const groups=new Map();for(const p of poses){if(!groups.has(p.passId))groups.set(p.passId,[]);groups.get(p.passId).push(p);}
+     for(const arr of groups.values())poly3D(arr.map(p=>p.a0),'#e3e8ff',2.4,.92,cam,[5,3]);
+     for(const p of poses){if(p.contact)circle3D(p.a0,.055,'#8bffbf',cam,'#103128');}
+     if(state.edit3D&&!state.viewLocked&&state.taskMode==='skill'&&!state.tilted.length){
+       const firstGroup=poses.filter(p=>p.passId===0);
+       for(let i=0;i<firstGroup.length;i+=Math.max(1,Math.round(state.nominal.length/28))){
+         if(i===0||i===firstGroup.length-1)continue;
+         circle3D(firstGroup[i].a0,i===state.selected?.12:.07,i===state.selected?'#ffd68e':'#e9edff',cam,'#15303c');
+       }
+     }
+   }
  }
  const tiltEnabled=state.layers.tilt&&state.tilted.length,warpEnabled=state.layers.warp&&state.warped.length;
  if(tiltEnabled){
@@ -184,20 +199,25 @@ function loop(now){
  if(state.dirty)drawScene();requestAnimationFrame(loop);
 }
 function updateUI(){
- for(const [id,value,suffix] of [['xVal',state.surface.offsetX.toFixed(2),''],['zVal',state.surface.offsetZ.toFixed(2),''],['rotVal',state.surface.rotation.toFixed(0),'°'],['scaleVal',state.surface.scale.toFixed(2),'×'],['cutAngleVal',state.cutAngle,'°'],['cutOffsetVal',state.cutOffset.toFixed(2),''],['amplitudeVal',state.amplitude.toFixed(2),''],['lengthVal',state.rodLength.toFixed(2),''],['tiltVal',state.tiltAngle,'°'],['coneVal',state.coneAngle,'°']])$(id).textContent=value+suffix;
+ for(const [id,value,suffix] of [['xVal',state.surface.offsetX.toFixed(2),''],['zVal',state.surface.offsetZ.toFixed(2),''],['rotVal',state.surface.rotation.toFixed(0),'°'],['scaleVal',state.surface.scale.toFixed(2),'×'],['cutAngleVal',state.cutAngle,'°'],['cutOffsetVal',state.cutOffset.toFixed(2),''],['amplitudeVal',state.amplitude.toFixed(2),''],['repeatsVal',state.repeats,''],['lengthVal',state.rodLength.toFixed(2),''],['tiltVal',state.tiltAngle,'°'],['coneVal',state.coneAngle,'°']])$(id).textContent=value+suffix;
  $('sceneName').textContent={hill:'Complex hill',saddle:'Saddle surface',profile:'Extruded 2D profile'}[state.surface.type];
  $('surfaceOptions').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.surface===state.surface.type));
- updateMetric();paintStrokeThumbnail();
+ updateMetric();paintStrokeThumbnail();$('nominalSummary').textContent=state.taskMode==='skill'?`Nominal: ${state.skillName} · ${state.nominal.length} samples · ${state.nominal.filter(p=>p.contact).length} contact points / primitive`:'All-contact: A0 follows Guide, A1 uses fixed rod length';
 }
 function paintStrokeThumbnail(){const el=$('smallStroke'),c=el.getContext('2d');c.clearRect(0,0,el.width,el.height);c.fillStyle='#101d2a';c.fillRect(0,0,el.width,el.height);c.strokeStyle='#294359';c.lineWidth=1;c.beginPath();c.moveTo(0,el.height*.5);c.lineTo(el.width,el.height*.5);c.stroke();
  c.strokeStyle='#f6cc8b';c.lineWidth=2.3;c.beginPath();for(let i=0;i<90;i++){const x=i/89,p={x:12+x*(el.width-24),y:8+atStroke(state.stroke,x)*(el.height-20)};i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y);}c.stroke();}
 function applyTerrain(type){state.surface.type=type;invalidate(true);updateUI();toast(type==='profile'?'已切换到手绘拉伸曲面。':'已加载 '+type+' 示例曲面。');}
 $('surfaceOptions').addEventListener('click',e=>{const b=e.target.closest('button[data-surface]');if(b)applyTerrain(b.dataset.surface);});
-for(const [id,prop,field,regen] of [['surfaceX','offsetX','surface',true],['surfaceZ','offsetZ','surface',true],['surfaceRot','rotation','surface',true],['surfaceScale','scale','surface',true],['cutAngle','cutAngle','root',false],['cutOffset','cutOffset','root',false],['strokeAmp','amplitude','root',false],['rodLength','rodLength','root',false],['tiltAngle','tiltAngle','root',false],['coneAngle','coneAngle','root',false]]){
+for(const [id,prop,field,regen] of [['surfaceX','offsetX','surface',true],['surfaceZ','offsetZ','surface',true],['surfaceRot','rotation','surface',true],['surfaceScale','scale','surface',true],['cutAngle','cutAngle','root',false],['cutOffset','cutOffset','root',false],['strokeAmp','amplitude','root',false],['rodLength','rodLength','root',false],['tiltAngle','tiltAngle','root',false],['coneAngle','coneAngle','root',false],['repeats','repeats','root',false]]){
  $(id).addEventListener('input',e=>{const val=Number(e.target.value);if(field==='surface')state.surface[prop]=val;else state[prop]=val;invalidate(regen);updateUI();});
 }
 $('reverseTool').addEventListener('change',e=>{state.reverse=e.target.checked;invalidate();});
-$('btnGuide').addEventListener('click',()=>{updateGuide();toast(`已生成 ${state.cut.points.length} 个 Guide 截面点。调整 Plane angle / offset 可重新选择。`);});
+$('btnGuide').addEventListener('click',()=>{updateGuide();toast(`已生成 ${state.guide.points.length} 个 Guide 点；Nominal 与 Guide 独立。`);});
+$('taskModes').addEventListener('click',e=>{const b=e.target.closest('[data-task]');if(!b||state.viewLocked)return;state.taskMode=b.dataset.task;$('taskModes').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));$('liftSkillControls').hidden=state.taskMode!=='skill';$('contactSkillControls').hidden=state.taskMode!=='contact';state.edit3D=false;$('btnNominal3D').classList.remove('active');invalidate();updateUI();});
+for(const [id,type,name] of [['btnHalf','half','Half-circle'],['btnSpiral','spiral','3D Spiral']])$(id).addEventListener('click',()=>{state.nominal=makeSkillExample(type);state.skillName=name;invalidate();updateUI();toast(name+' nominal ready: interior A0 may lift; two anchors.');});
+$('btnImportCSV').addEventListener('click',()=>$('fileImport').click());
+$('fileImport').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>250000)throw new Error('CSV exceeds 250 KB');state.nominal=parseNominalCSV(await file.text());state.skillName=file.name;invalidate();updateUI();toast(`CSV imported: ${state.nominal.length} ordered poses.`);}catch(err){toast('CSV error: '+err.message);}finally{e.target.value='';}});
+$('btnNominal3D').addEventListener('click',()=>{if(state.viewLocked||state.taskMode!=='skill')return;state.edit3D=!state.edit3D;$('btnNominal3D').classList.toggle('active',state.edit3D);setMode('orbit');$('skillEditHint').textContent=state.edit3D?'3D 编辑开启：拖白色控制点调高度和侧向；空白处拖动是转视角。两端为固定接触点。':'点击 3D edit 进入控制点编辑，或直接拖动空白处查看场景。';state.dirty=true;});
 $('btnTilted').addEventListener('click',()=>generateTilted());
 $('btnWarp').addEventListener('click',()=>warp());
 $('frameSlider').addEventListener('input',e=>{state.pose=Number(e.target.value);updateFrame();state.dirty=true;});
@@ -209,10 +229,32 @@ $('btnPlane').addEventListener('click',e=>{state.planeVisible=!state.planeVisibl
 for(const [id,key] of [['layerSurface','surface'],['layerPlane','plane'],['layerGuide','guide'],['layerNominal','nominal'],['layerTilt','tilt'],['layerWarp','warp']])$(id).addEventListener('change',e=>{state.layers[key]=e.target.checked;state.dirty=true;});
 function setMode(mode){if(state.viewLocked&&mode!=='orbit'){toast('结果已锁定。点 Edit scene 后才能移动/旋转曲面。');return;}state.mode=mode;for(const [id,m] of [['btnModeOrbit','orbit'],['btnModeMove','move'],['btnModeRotate','rotate']])$(id).classList.toggle('active',mode===m);$('stageHelp').textContent={orbit:'DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT + DRAG TO PAN',move:'DRAG TO MOVE SURFACE · SCROLL TO ZOOM',rotate:'DRAG HORIZONTALLY TO ROTATE SURFACE'}[mode];}
 for(const [id,mode] of [['btnModeOrbit','orbit'],['btnModeMove','move'],['btnModeRotate','rotate']])$(id).addEventListener('click',()=>setMode(mode));
-canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);state.drag={x:e.clientX,y:e.clientY,button:e.button,shift:e.shiftKey};canvas.classList.add('dragging');});
+canvas.addEventListener('pointerdown',e=>{
+ canvas.setPointerCapture(e.pointerId);state.drag={x:e.clientX,y:e.clientY,button:e.button,shift:e.shiftKey};
+ if(state.edit3D&&!state.viewLocked&&state.taskMode==='skill'&&!e.shiftKey){
+   const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,cam=makeCamera();
+   let best=16,selected=-1;const first=state.preview?.poses?.slice(0,state.nominal.length)??[];
+   const jump=Math.max(1,Math.round(state.nominal.length/28));
+   for(let i=jump;i<first.length-1;i+=jump){const xy=proj(first[i].a0,cam);if(!xy)continue;const d=Math.hypot(x-xy.x,y-xy.y);if(d<best){best=d;selected=i;}}
+   if(selected>=0){state.selected=selected;state.drag.nominalIndex=selected;state.dirty=true;}
+ }
+ canvas.classList.add('dragging');
+});
 canvas.addEventListener('pointermove',e=>{
  const d=state.drag;if(!d)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;d.x=e.clientX;d.y=e.clientY;
  const cam=state.cam;
+ if(d.nominalIndex!==undefined&&state.preview?.groups?.length){
+   const i=d.nominalIndex,grp=state.preview.groups[0],pose=state.preview.poses[i],camera=makeCamera();
+   const p=proj(pose.a0,camera),q1=proj(add(pose.a0,mul(grp.up,grp.scaleFactor)),camera),q2=proj(add(pose.a0,mul(grp.side,grp.scaleFactor)),camera);
+   if(p&&q1&&q2){const ux=q1.x-p.x,uy=q1.y-p.y,vx=q2.x-p.x,vy=q2.y-p.y,det=ux*vy-uy*vx;
+     const dv=Math.abs(det)>1e-3?(dx*vy-dy*vx)/det:-dy*.008;
+     const dw=Math.abs(det)>1e-3?(ux*dy-uy*dx)/det:dx*.008;
+     state.nominal[i].v=clamp(state.nominal[i].v+dv,-1.2,1.8);
+     state.nominal[i].w=clamp(state.nominal[i].w+dw,-1.5,1.5);
+     refreshPreview();updateUI();
+   }
+   return;
+ }
  if(!state.viewLocked&&state.mode==='move'){
   const scale=.018*cam.distance/14.8;
   state.surface.offsetX=clamp(state.surface.offsetX+(dx*Math.cos(cam.az)+dy*Math.sin(cam.az))*scale,-2.8,2.8);
@@ -229,39 +271,66 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();state.cam.distance=clamp(
 function drawingCanvas(){
  dc.clearRect(0,0,sketch.width,sketch.height);dc.fillStyle='#0d1929';dc.fillRect(0,0,sketch.width,sketch.height);
  dc.lineWidth=1;dc.strokeStyle='#263b50';for(let x=0;x<=sketch.width;x+=sketch.width/10){dc.beginPath();dc.moveTo(x,0);dc.lineTo(x,sketch.height);dc.stroke();}for(let y=0;y<=sketch.height;y+=sketch.height/6){dc.beginPath();dc.moveTo(0,y);dc.lineTo(sketch.width,y);dc.stroke();}
- const points=drawRaw.length>1?drawRaw:(drawType==='profile'?state.surface.profile:state.stroke);
- if(points.length>1){dc.lineWidth=4;dc.lineJoin='round';dc.lineCap='round';dc.strokeStyle=drawType==='profile'?'#73dee6':'#f5c079';dc.beginPath();for(let i=0;i<points.length;i++){const p=points[i],x=clamp(p.x,0,1)*sketch.width,y=clamp(p.y,0,1)*sketch.height;i?dc.lineTo(x,y):dc.moveTo(x,y);}dc.stroke();}
- dc.fillStyle='#89a7be';dc.font='12px system-ui';dc.fillText(drawType==='profile'?'HEIGHT ↑':'LATERAL OFFSET ↑',16,23);
+ let points;
+ if(drawRaw.length>1)points=drawRaw;
+ else if(drawType==='profile')points=state.surface.profile;
+ else if(drawType==='guide')points=state.stroke;
+ else if(drawType==='a1')points=state.a1Stroke??[{x:0,y:.5},{x:1,y:.5}];
+ else points=state.nominal.map(p=>({x:.08+.84*p.u,y:.76-.6*p.v}));
+ if(points.length>1){dc.lineWidth=4;dc.lineJoin='round';dc.lineCap='round';dc.strokeStyle=drawType==='profile'?'#73dee6':drawType==='trajectory'?'#e2e8ff':'#f5c079';dc.beginPath();for(let i=0;i<points.length;i++){const p=points[i],x=p.x*sketch.width,y=p.y*sketch.height;i?dc.lineTo(x,y):dc.moveTo(x,y);}dc.stroke();}
+ if(drawType==='trajectory'){
+  for(const [text,x] of [['START',.08],['END',.92]]){
+   const px=x*sketch.width,py=.76*sketch.height;dc.beginPath();dc.arc(px,py,9,0,Math.PI*2);dc.fillStyle='#7af0a9';dc.fill();dc.fillStyle='#c4f4dd';dc.font='bold 13px system-ui';dc.fillText(text,px+(x<.5?14:-43),py+24);
+  }
+ }
+ dc.fillStyle='#89a7be';dc.font='12px system-ui';dc.fillText(({profile:'SURFACE HEIGHT',guide:'GUIDE LATERAL OFFSET',trajectory:'SKILL LIFT (A0 FREE BETWEEN CONTACT FEET)',a1:'A1 TOOL-ANGLE PROFILE'})[drawType],16,23);
 }
-function openModal(type){drawType=type;drawRaw=[];$('modalTitle').textContent=type==='profile'?'Draw a 2D surface profile':'Draw a 2D nominal trajectory';$('modalHelp').textContent=type==='profile'?'从左向右手绘一条侧面高度轮廓（不是闭合形状）。网站会沿 Z 方向拉伸成 3D 曲面。':'从左向右画路径；横轴为 Guide 上的进度，纵轴为左右偏移。导入 3D 时路径会贴到曲面。';$('drawStatus').textContent='Drag to draw from left to right';$('drawModal').hidden=false;drawingCanvas();}
+function openModal(type){drawType=type;drawRaw=[];
+ const labels={profile:'Draw 2D surface profile',guide:'Draw guide A0 path',trajectory:'Draw 2D Nominal Skill (A0)',a1:'Draw A1 angle profile'};
+ const helps={profile:'从左到右画 Surface 高度，沿 Z 拉伸成 3D。',guide:'沿 Guide 进度画横向偏移；这条线会贴在曲面上作为引导线，不是 Nominal。',trajectory:'在平面上画技能 A0 路径：绿色 START / END 是接触脚。中间可以 lift、回环；保留你的笔画顺序，不会强制变成波浪线。画完可按 3D edit 调侧向形成 Spiral。',a1:'All-contact 模式：横轴是 Guide 进度；纵轴调 A1 相对表面切线的倾角（不是 A1 的独立长度）。'};
+ $('modalTitle').textContent=labels[type];$('modalHelp').textContent=helps[type];$('drawStatus').textContent='Draw from START to END';$('drawModal').hidden=false;drawingCanvas();
+}
 $('btnDrawSurface').addEventListener('click',()=>openModal('profile'));
+$('btnDrawGuide').addEventListener('click',()=>openModal('guide'));
 $('btnDrawTraj').addEventListener('click',()=>openModal('trajectory'));
+$('btnDrawA1').addEventListener('click',()=>openModal('a1'));
 $('btnCloseModal').addEventListener('click',()=>$('drawModal').hidden=true);
 $('drawModal').addEventListener('click',e=>{if(e.target===$('drawModal'))$('drawModal').hidden=true;});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')$('drawModal').hidden=true;});
 function toSketchPt(e){const r=sketch.getBoundingClientRect();return {x:clamp((e.clientX-r.left)/r.width,0,1),y:clamp((e.clientY-r.top)/r.height,0,1)};}
 sketch.addEventListener('pointerdown',e=>{drawRaw=[toSketchPt(e)];drawActive=true;sketch.setPointerCapture(e.pointerId);drawingCanvas();});
 sketch.addEventListener('pointermove',e=>{if(!drawActive)return;const p=toSketchPt(e),last=drawRaw.at(-1);if(Math.abs(p.x-last.x)+Math.abs(p.y-last.y)>.002){drawRaw.push(p);drawingCanvas();}});
-sketch.addEventListener('pointerup',()=>{drawActive=false;$('drawStatus').textContent=`${drawRaw.length} points drawn`;});
+sketch.addEventListener('pointerup',()=>{drawActive=false;$('drawStatus').textContent=`${drawRaw.length} ordered points drawn`;});
 sketch.addEventListener('pointercancel',()=>drawActive=false);
-$('btnDrawClear').addEventListener('click',()=>{drawRaw=[];drawingCanvas();$('drawStatus').textContent='Cleared. Draw left to right.';});
-$('btnDrawDefault').addEventListener('click',()=>{drawRaw=(drawType==='profile'?defaultProfile:defaultStroke).map(p=>({...p}));drawingCanvas();});
+$('btnDrawClear').addEventListener('click',()=>{drawRaw=[];drawingCanvas();$('drawStatus').textContent='Cleared.';});
+$('btnDrawDefault').addEventListener('click',()=>{drawRaw=drawType==='profile'?defaultProfile.map(p=>({...p})):drawType==='trajectory'?makeSkillExample('half').map(p=>({x:.08+.84*p.u,y:.76-.6*p.v})):Array.from({length:80},(_,i)=>({x:i/79,y:.5}));drawingCanvas();});
 $('btnDrawApply').addEventListener('click',()=>{
- const pts=normalizeStroke(drawRaw.length>1?drawRaw:(drawType==='profile'?state.surface.profile:state.stroke));
- if(!pts){$('drawStatus').textContent='Please draw a longer left-to-right line.';return;}
- if(drawType==='profile'){state.surface.profile=smoothStroke(pts,72,.045);state.surface.type='profile';invalidate(true);}else{state.stroke=smoothStroke(pts,72,.013);invalidate();}
- $('drawModal').hidden=true;updateUI();toast(drawType==='profile'?'2D 轮廓已生成拉伸曲面。':'新的 Nominal Stroke 已应用，请重新生成 Tilted。');
+ try{
+   if(drawType==='trajectory'){
+    if(drawRaw.length<3)throw new Error('Draw a stroke with START on left and END on right');
+    state.nominal=sketchToSkill(drawRaw,81);state.skillName='Freehand 2D';
+   }else{
+    const base=drawType==='profile'?state.surface.profile:drawType==='guide'?state.stroke:state.a1Stroke??[{x:0,y:.5},{x:1,y:.5}];
+    const pts=normalizeStroke(drawRaw.length>1?drawRaw:base);
+    if(!pts)throw new Error('Draw a longer stroke');
+    const result=smoothStroke(pts,100,drawType==='profile'?.045:.013);
+    if(drawType==='profile'){state.surface.profile=result;state.surface.type='profile';invalidate(true);}
+    else if(drawType==='guide')state.stroke=result;
+    else state.a1Stroke=result;
+   }
+   invalidate();$('drawModal').hidden=true;updateUI();toast(({profile:'Surface updated',guide:'Guide updated (Nominal unchanged)',trajectory:'Nominal skill created; click 3D edit to lift/drag lateral points',a1:'A1 direction profile applied'})[drawType]);
+ }catch(err){$('drawStatus').textContent=err.message;}
 });
 function exportProject(){
- const data={format:'SPGA-WebLab-Demo-v1',notice:'Browser approximation, NOT the archived research SPGA-M2 solver.',units:'arbitrary 3D display units',surface:state.surface,stroke:state.stroke,cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,tiltAngleDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},guide:state.cut.points,contact:state.contacts.map(p=>p.point),tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
+ const data={format:'SPGA-WebLab-Demo-v2',notice:'Browser demo, not the archived research SPGA-M2 solver.',units:'arbitrary display units',surface:state.surface,guideStroke:state.stroke,guide:state.guide.points.map(c=>c.point),nominal:state.nominal,nominalSkillName:state.skillName,taskMode:state.taskMode,repeats:state.repeats,contactMask:state.tilted.map(p=>p.contact),cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,tiltAngleDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='spga_web_lab_demo.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);toast('已导出曲面参数、路径和 Tilted / Warped poses (JSON)。');
 }
 $('btnExport').addEventListener('click',exportProject);
-$('btnReset').addEventListener('click',()=>{Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:defaultStroke,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:65,coneAngle:40,reverse:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
- for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['rodLength',1.2],['tiltAngle',65],['coneAngle',40]])$(id).value=n;
- $('reverseTool').checked=false;invalidate(true);state.viewLocked=false;updateEditorLock();setMode('orbit');updateUI();toast('已恢复默认 Hill 场景；可编辑后 Generate Tilted → Warp。');});
+$('btnReset').addEventListener('click',()=>{Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),nominal:makeSkillExample('half'),skillName:'Half-circle',taskMode:'skill',repeats:3,a1Stroke:null,edit3D:false,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
+ for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['repeats',3],['rodLength',1.2],['tiltAngle',25],['coneAngle',40]])$(id).value=n;
+ $('reverseTool').checked=false;$('taskModes').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.task==='skill'));$('liftSkillControls').hidden=false;$('contactSkillControls').hidden=true;$('btnNominal3D').classList.remove('active');invalidate(true);state.viewLocked=false;updateEditorLock();setMode('orbit');updateUI();toast('已恢复默认 Hill 场景；可编辑后 Generate Tilted → Warp。');});
 
 // Start in edit mode with a ready-to-use Hill & Guide, but NO generated poses.
 // Once the user clicks Generate Tilted or Warp, geometry is locked for viewing.
 state.mesh=getMesh(state.surface,41);updateGuide();updateEditorLock();updateUI();resize();requestAnimationFrame(loop);
-window.__spga={state,generateTilted,warp,analyzePath,exportProject,updateGuide};
+window.__spga={state,generateTilted,warp,analyzePath,exportProject,updateGuide,refreshPreview,projectPose:p=>proj(p,makeCamera())};
