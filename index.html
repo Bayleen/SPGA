@@ -55,10 +55,11 @@
   <section class="card"><div class="card-title"><b class="step">04</b><h3>Tool & Warping <small>姿态变形</small></h3></div>
     <p class="helper">Lifted skill 仅锁定 Contact Mask 标记的 A0；All-contact 每个 A0 接触。棒长固定。</p>
     <label class="slider-row">Tool length <output id="lengthVal">1.20</output><input id="rodLength" type="range" min="0.4" max="2.1" value="1.2" step="0.05" /></label>
-    <p class="helper">Tilted：每段 Nominal 整体统一旋转、平移及必要的统一缩放（Sim(3)）；不会逐点投影。Tilt angle 从切平面测量（0° = 沿切线）。</p>
-    <label class="slider-row">Tilt angle <output id="tiltVal">25°</output><input id="tiltAngle" type="range" min="5" max="85" value="25" step="1" /></label>
-    <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="75" value="40" step="1" /></label>
-    <label class="check"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
+    <p class="helper">Tilted 使用整体 Sim(3) 摆放 Nominal，不逐点投影。生成后仍可实时调整棒长和角度；Surface / Guide / Nominal 锁定。</p>
+    <label class="slider-row">Tool angle vs surface <output id="tiltVal">25°</output><input id="tiltAngle" type="range" min="0" max="180" value="25" step="1" /></label>
+    
+    <p class="helper">0° = 前倾沿切线；90° = 沿外法线；180° = 后仰沿反向切线。工具角度相对曲面切平面，不是相对 Normal。</p>
+    <label class="check" style="display:none"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
     <div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Warp ✦</button></div>
   </section>
  </aside>
@@ -73,7 +74,7 @@
    <div class="playback">
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
-      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp 使用浏览器中的碰撞采样与锥内姿态搜索，不是论文 SPGA-M2 的原始力平衡求解器。</span></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp 是单向外法线排斥 + 锥内姿态搜索 + 近似 Ribbon 的浏览器演示，不是 Python SPGA-M2 的完整力平衡求解器。</span></div>
    </div>
  </section>
  <aside class="sidebar right">
@@ -86,6 +87,30 @@
       <div class="analysis-row"><span>Colliding poses</span><b id="metricCollision">—</b></div>
       <div class="analysis-row"><span>Max axis adjustment</span><b id="metricAngle">—</b></div>
       <div id="metricHint" class="metric-hint">Generate Tilted, then Warp to see the difference.</div>
+   </section>
+   <section class="card balance-card">
+     <div class="section-head">FORCE BALANCE <span class="micro">LIVE DEMO</span></div>
+     <p class="helper">Geometry 向外排斥；Conic 把姿态拉回 Tilted 附近；Ribbon 抵抗相邻姿态与轨迹形变。下面权重会重新计算浏览器 Warp，<strong>不是 Python M2 的原始增益值</strong>。</p>
+     <svg class="force-diagram" viewBox="0 0 280 156" role="img" aria-label="Geometry upward, Conic toward tilted axis, Ribbon maintains neighboring pose shape">
+       <defs><marker id="arrowGeo" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#54e4d4" /></marker>
+       <marker id="arrowCone" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#e4c482" /></marker>
+       <marker id="arrowRibbon" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#cc9cf0" /></marker></defs>
+       <path d="M24 116 Q64 100 108 118 T256 118" fill="none" stroke="#6695b6" stroke-width="3"/>
+       <path d="M110 118 L185 54" stroke="#ffb2a0" stroke-width="6" stroke-linecap="round" />
+       <circle cx="110" cy="118" r="5" fill="#a2edd1"/><text x="91" y="133" fill="#c3dae7" font-size="10">A0</text><text x="187" y="49" fill="#d5ebf1" font-size="10">A1</text>
+       <g class="animated-forces"><line id="forceGeo" x1="182" y1="60" x2="182" y2="10" stroke="#54e4d4" stroke-width="3" marker-end="url(#arrowGeo)"/><text x="194" y="16" fill="#54e4d4" font-size="10">Fg</text>
+       <line id="forceCone" x1="181" y1="63" x2="216" y2="99" stroke="#e4c482" stroke-width="3" marker-end="url(#arrowCone)"/><text x="219" y="109" fill="#e4c482" font-size="10">Fc</text>
+       <line id="forceRibbon" x1="178" y1="60" x2="137" y2="69" stroke="#cc9cf0" stroke-width="3" marker-end="url(#arrowRibbon)"/><text x="99" y="70" fill="#cc9cf0" font-size="10">Fr</text></g>
+     </svg>
+     <label class="slider-row">Geometry · outward <output id="geometryVal">1.00×</output><input id="geometryGain" type="range" min="0.1" max="4" step="0.1" value="1" /></label>
+     <p class="parameter-hint">穿透越深，排斥越强；只沿外法线，不会从曲面背面反推。</p>
+     <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="85" value="40" step="1" /></label>
+     <label class="slider-row">Conic restoring <output id="conicVal">1.00×</output><input id="conicGain" type="range" min="0" max="4" step="0.1" value="1" /></label>
+     <p class="parameter-hint">锥角决定最大允许偏离；恢复权重越大，越倾向保持 Tilted 姿态。</p>
+     <label class="slider-row">Ribbon tension <output id="tensionVal">0.60×</output><input id="tensionGain" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
+     <label class="slider-row">Ribbon bending <output id="bendingVal">0.35×</output><input id="bendingGain" type="range" min="0" max="3" step="0.05" value="0.35" /></label>
+     <p class="parameter-hint">Tension 保持相邻姿态差；Bending 抑制急剧弯折。两者属于 Ribbon。</p>
+     <div class="balance-caption" id="balanceCaption">调节参数后可重新观察 Warp。</div>
    </section>
    <section class="card"><div class="section-head">VISIBLE LAYERS</div>
       <label class="layer"><span><i class="dot terrain"></i> Surface mesh</span><input id="layerSurface" type="checkbox" checked /></label>
