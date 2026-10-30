@@ -13,3 +13,11 @@ input:disabled{opacity:.52;cursor:not-allowed}
 #btnNominal3D.active{border-color:#8ee7d5;background:#1e5c59;color:#e7fff8}
 
 .sample-link{display:block;margin:9px 2px;color:#78dfdc;text-decoration:none;font-size:10px;font-weight:700}.sample-link:hover{text-decoration:underline}
+
+/* V3 interactive force-balance panel */
+.balance-card .helper strong{color:#d8eced}.balance-card .parameter-hint{margin:-7px 0 12px;color:#7d9ab0;font-size:10px;line-height:1.5}
+.force-diagram{width:100%;height:auto;max-height:155px;display:block;background:radial-gradient(ellipse at center,#162b40,#0b1624);border:1px solid #30475e;border-radius:10px;margin:8px 0 13px}
+.force-diagram .animated-forces line{stroke-dasharray:8 3;animation:force-flow 1.2s linear infinite}
+@keyframes force-flow{to{stroke-dashoffset:-22}}
+.balance-caption{font-size:10px;background:#122b33;border:1px solid #286069;border-radius:8px;padding:9px;color:#92c9c5;line-height:1.5;margin-top:12px}
+.right{scrollbar-width:thin}
