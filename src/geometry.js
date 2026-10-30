@@ -188,8 +188,17 @@ export function warpDemo(poses,state,length,betaDeg){
         if(score<bestScore){bestScore=score;best=axis;bestMetrics=mm;bestTheta=theta;}
       }
     }
+    // Only explicit non-contact A0 samples may move. Contact anchors remain exact.
+    // This is a local browser-demo lift heuristic, not M2 ribbon/force balance.
+    let resultA0=p.a0;
+    if(p.contact===false && bestMetrics.penetration>.004){
+      const lift=clamp(bestMetrics.penetration+.025,0,.35);
+      const nn=p.normal??V(0,1,0),candidate=add(p.a0,mul(nn,lift));
+      const liftedMetrics=rodMetrics({...p,a0:candidate},state,length);
+      if(liftedMetrics.penetration<bestMetrics.penetration){resultA0=candidate;bestMetrics=liftedMetrics;}
+    }
     if(bestMetrics.penetration>.004)failure++;
-    warped.push({...p,axis:best,a1:add(p.a0,mul(best,length)),deviationDeg:bestTheta*180/Math.PI});
+    warped.push({...p,a0:resultA0,axis:best,a1:add(resultA0,mul(best,length)),deviationDeg:bestTheta*180/Math.PI});
   }
   return {warped,failure};
 }
@@ -204,4 +213,141 @@ export function analyzePath(poses,state,length){
     minClearance=Math.min(minClearance,m.minClearance);
   }
   return {count:poses.length,collisions,maxPenetration,meanPenetration:totalPen/poses.length,minClearance:Number.isFinite(minClearance)?minClearance:null};
+}
+
+// ----- v2: independent nominal skill (A0 SE(3) source), guide, placement -----
+// Sketch samples are ordered by pen time. NEVER sort by x: loops/spirals need order.
+export function resampleOrdered(points,count=81){
+  if(points.length<2)throw new Error('Need at least two points');
+  const src=[points[0]],s=[0];
+  for(let i=1;i<points.length;i++){
+    const d=Math.hypot(points[i].u-src.at(-1).u,points[i].v-src.at(-1).v,points[i].w-src.at(-1).w);
+    if(d<1e-7)continue;src.push(points[i]);s.push(s.at(-1)+d);
+  }
+  if(src.length<2||s.at(-1)<1e-6)throw new Error('Nominal stroke is too short');
+  const out=[];let j=1;
+  for(let i=0;i<count;i++){
+    const target=i/(count-1)*s.at(-1);
+    while(j<s.length-1&&s[j]<target)j++;
+    const t=clamp((target-s[j-1])/Math.max(1e-9,s[j]-s[j-1]),0,1);
+    const a=src[j-1],b=src[j];out.push({u:a.u+(b.u-a.u)*t,v:a.v+(b.v-a.v)*t,w:a.w+(b.w-a.w)*t,contact:i===0||i===count-1});
+  }
+  return out;
+}
+export function sketchToSkill(raw,count=81){
+  if(!Array.isArray(raw)||raw.length<2)throw new Error('Draw a path from START to END');
+  const first=raw[0],last=raw.at(-1),dx=last.x-first.x;
+  if(dx<.22)throw new Error('End point must be to the right of Start (at least 22% canvas width)');
+  const pts=raw.map(p=>{
+    const u=(p.x-first.x)/dx;
+    const baseline=first.y+(last.y-first.y)*u;
+    return {u,v:(baseline-p.y)/dx,w:0};
+  });
+  const out=resampleOrdered(pts,count);
+  out[0]={u:0,v:0,w:0,contact:true};out[out.length-1]={u:1,v:0,w:0,contact:true};
+  return out;
+}
+export function makeSkillExample(type='half',count=81){
+  return Array.from({length:count},(_,i)=>{
+    const t=i/(count-1),theta=Math.PI*t;
+    if(type==='spiral'){
+      const r=.16*Math.sin(theta),phase=3*Math.PI*t;
+      return {u:t,v:.36*Math.sin(theta)+r*Math.sin(phase)*Math.cos(theta),w:r*Math.cos(phase),contact:i===0||i===count-1};
+    }
+    return {u:t,v:.46*Math.sin(theta),w:0,contact:i===0||i===count-1};
+  });
+}
+export function parseNominalCSV(text){
+  const rows=text.trim().split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
+  if(rows.length<4)throw new Error('CSV needs header + at least 3 poses');
+  const head=rows[0].split(',').map(v=>v.trim().toLowerCase());
+  for(const col of ['u','v','w'])if(!head.includes(col))throw new Error('CSV missing '+col+' column');
+  if(rows.length>3001)throw new Error('Maximum 3000 input poses');
+  const result=rows.slice(1).map((line,i)=>{
+    const fields=line.split(',');if(fields.length!==head.length)throw new Error('CSV row '+(i+2)+' has incorrect column count');
+    const val=k=>Number(fields[head.indexOf(k)]);
+    const u=val('u'),v=val('v'),w=val('w');
+    if(![u,v,w].every(Number.isFinite))throw new Error('CSV contains nonnumeric xyz at line '+(i+2));
+    const contact=head.includes('contact')?['1','true','yes'].includes(fields[head.indexOf('contact')].trim().toLowerCase()):i===0||i===rows.length-2;
+    const p={u,v,w,contact};
+    if(['ax','ay','az'].every(x=>head.includes(x))){p.axis=V(val('ax'),val('ay'),val('az'));if(![p.axis.x,p.axis.y,p.axis.z].every(Number.isFinite)||len(p.axis)<1e-8)throw new Error('Invalid axis at line '+(i+2));p.axis=norm(p.axis);}
+    return p;
+  });
+  if(result.length<3||Math.hypot(result.at(-1).u-result[0].u,result.at(-1).v-result[0].v,result.at(-1).w-result[0].w)<1e-8)throw new Error('Start and end must differ');
+  // Contact labels are authoritative; always preserve start/end as contact.
+  result[0].contact=true;result.at(-1).contact=true;
+  if(result.slice(1,-1).some(p=>p.contact))throw new Error('Lifted Skill CSV currently supports contact only at start/end; use All-contact for continuous contact');
+  return result;
+}
+export function buildGuide(state,stroke,cutAngle,cutOffset,count=161,amplitude=.7){
+  const a=rad(cutAngle),t=V(Math.cos(a),0,Math.sin(a)),side=V(-Math.sin(a),0,Math.cos(a)),pts=[];
+  for(let i=0;i<count;i++){
+    const u=i/(count-1),lateral=(.5-atStroke(stroke,u))*2*amplitude;
+    const p=add(add(V(state.offsetX??0,0,state.offsetZ??0),mul(t,(u-.5)*5.2*(state.scale??1))),mul(side,cutOffset+lateral));
+    const sm=sampleSurface(state,p.x,p.z);
+    if(sm)pts.push({...sm,progress:u});
+  }
+  let arc=0;for(let i=0;i<pts.length;i++){if(i)arc+=len(sub(pts[i].point,pts[i-1].point));pts[i].s=arc;}
+  return {points:pts,totalArc:arc,surface:state};
+}
+export function pointOnGuide(guide,t){
+  const arr=guide.points;if(!arr.length)return null;
+  const s=clamp(t,0,1)*guide.totalArc;let lo=0,hi=arr.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1;if(arr[mid].s<s)lo=mid+1;else hi=mid;}
+  if(lo===0)return arr[0];const b=arr[lo],a=arr[lo-1],f=(s-a.s)/Math.max(1e-9,b.s-a.s);
+  const approx=mix(a.point,b.point,f);
+  const exact=sampleSurface(guide.surface,approx.x,approx.z);
+  return {point:exact?.point??approx,normal:exact?.normal??norm(mix(a.normal,b.normal,f)),progress:t,s};
+}
+export function placementFrame(p0,p1,midNormal){
+  const forward=norm(sub(p1,p0));
+  let up=sub(midNormal,mul(forward,dot(midNormal,forward)));
+  if(len(up)<1e-6)up=sub(V(0,1,0),mul(forward,dot(V(0,1,0),forward)));
+  up=norm(up);if(dot(up,midNormal)<0)up=mul(up,-1);
+  return {forward,up,side:norm(cross(forward,up)),origin:p0,scale:len(sub(p1,p0))};
+}
+export function placeNominal(skill,guide,repeats=1,tiltDeg=65,length=1.2,reverse=false){
+  if(!skill?.length||guide.points.length<3)throw new Error('Guide and skill required');
+  const out=[],groups=[];const maxN=clamp(Math.round(repeats),1,8),minGap=.01;
+  const first=skill[0],last=skill.at(-1);
+  const disp=sub(V(last.u,last.v,last.w),V(first.u,first.v,first.w));const span=len(disp);
+  if(span<1e-6)throw new Error('Nominal start/end cannot coincide');
+  // Source u/v/w is defined in the canonical guide-aligned frame; each primitive
+  // is transformed by one similarity (not pointwise projected onto terrain).
+  for(let k=0;k<maxN;k++){
+    const t0=k/maxN+minGap/2,t1=(k+1)/maxN-minGap/2;
+    const a=pointOnGuide(guide,t0),b=pointOnGuide(guide,t1),m=pointOnGuide(guide,(t0+t1)/2);
+    const frame=placementFrame(a.point,b.point,m.normal),sim=frame.scale/span;
+    if(!Number.isFinite(sim)||sim<=0)throw new Error('Invalid guide interval');
+    // General canonical input: align source endpoint axis with guide chord.
+    const sourceForward=norm(disp), sourceUp0=V(0,1,0);
+    let sourceUp=sub(sourceUp0,mul(sourceForward,dot(sourceUp0,sourceForward)));
+    if(len(sourceUp)<1e-7)sourceUp=sub(V(0,0,1),mul(sourceForward,sourceForward.z));
+    sourceUp=norm(sourceUp);const sourceSide=norm(cross(sourceForward,sourceUp));
+    const worldAxis=axis=>norm(add(add(mul(frame.forward,dot(axis,sourceForward)),mul(frame.up,dot(axis,sourceUp))),mul(frame.side,dot(axis,sourceSide))));
+    const sg=reverse?-1:1;
+    const defaultAxis=norm(add(mul(frame.forward,sg*Math.cos(rad(tiltDeg))),mul(frame.up,Math.sin(rad(tiltDeg)))));
+    const frameGroup={...frame,start:a.point,end:b.point,scaleFactor:sim,from:k,contactIndices:[]};
+    for(let i=0;i<skill.length;i++){
+      const p=skill[i],local=sub(V(p.u,p.v,p.w),V(first.u,first.v,first.w));
+      const rel=add(add(mul(frame.forward,dot(local,sourceForward)),mul(frame.up,dot(local,sourceUp))),mul(frame.side,dot(local,sourceSide)));
+      const a0=add(frame.origin,mul(rel,sim)),contact=Boolean(p.contact)||i===0||i===skill.length-1;
+      const axis=p.axis?worldAxis(p.axis):defaultAxis;
+      out.push({a0,a1:add(a0,mul(axis,length)),axis,contact,passId:k,guide:k/maxN+i/Math.max(1,skill.length-1)/maxN,normal:frame.up});
+      if(contact)frameGroup.contactIndices.push(out.length-1);
+    }
+    groups.push(frameGroup);
+  }
+  return {poses:out,groups};
+}
+export function placeContactGuide(guide,length,tiltDeg,reverse=false,a1Stroke=null,count=81){
+  const contacts=Array.from({length:count},(_,i)=>pointOnGuide(guide,i/(count-1)));
+  const poses=contacts.map((c,i)=>{
+    const prev=contacts[Math.max(0,i-1)].point,next=contacts[Math.min(count-1,i+1)].point;
+    const forward=norm(sub(next,prev)),tangent=norm(sub(forward,mul(c.normal,dot(forward,c.normal))));
+    const alpha=a1Stroke?clamp(tiltDeg+(0.5-atStroke(a1Stroke,i/(count-1)))*90,5,88):tiltDeg;
+    const axis=norm(add(mul(tangent,(reverse?-1:1)*Math.cos(rad(alpha))),mul(c.normal,Math.sin(rad(alpha)))));
+    return {a0:c.point,a1:add(c.point,mul(axis,length)),axis,normal:c.normal,contact:true,passId:0,guide:i/(count-1)};
+  });
+  return {poses,groups:[]};
 }
