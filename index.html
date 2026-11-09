@@ -10,7 +10,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><div class="brand-icon">S<span>·</span></div><div><strong>SPGA</strong><small>SKILL-PRESERVING POSE WARPING</small></div></div>
-  <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> EXPERIMENTAL DEMO</div>
+  <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> RESEARCH M3 SOLVER</div>
   <div class="topactions"><button id="btnTutorial" class="tutorial-trigger">✦ Beginner Tutorial</button><button id="btnReset" class="quiet">↺ Reset</button><button id="btnExport" class="outline">↗ Export JSON</button></div>
 </header>
 <main class="app">
@@ -76,7 +76,7 @@
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
       <div class="pose-selection-bar"><label class="check compact"><input id="showConic" type="checkbox" checked/> ◎ Show selected conic</label><label class="check compact"><input id="focusPose" type="checkbox" checked/> Focus one pose</label><span>Click a pose / rod in 3D to inspect its cone · β = <b id="coneBadge">40°</b></span></div>
-      <div class="notice"><span class="notice-dot"></span><span><b>Demo model.</b> Warp uses an outward-only surface response, cone-constrained orientation search and an approximate Ribbon term. This browser demo is not the full Python SPGA-M2 force-balance solver.</span></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Original research M3.</b> Warp runs the Python SPGA-M3 force-balance solver via a separate HTTPS API. GitHub Pages hosts only the visualization. Without a configured running backend, Warp will display an error instead of simulated results.</span></div>
    </div>
  </section>
  <aside class="sidebar right">
@@ -99,7 +99,7 @@
       <div class="grid2"><button id="presetAvoid" class="action-soft">↑ Avoid collision</button><button id="presetPreserve" class="action-soft">⌁ Preserve skill</button></div>
     </section>
    <section class="card balance-card" id="tutorialBalance">
-     <div class="section-head">FORCE BALANCE <span class="micro">LIVE DEMO</span></div>
+     <div class="section-head">FORCE BALANCE <span class="micro">SCHEMATIC (NOT SOLVER FORCES)</span></div>
      <p class="helper">Geometry pushes outward; Conic favors the Tilted axis; Ribbon resists changes between neighboring poses. These controls recompute the browser Warp and <strong>are not the calibrated Python M2 gains</strong>.</p>
      <div class="force-illustration">
        <div class="force-visual-header"><b>GEOMETRY <span>Fᵍ</span></b><small>Outward-only response</small></div>

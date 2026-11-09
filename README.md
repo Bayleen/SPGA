@@ -1,52 +1,79 @@
-# SPGA — Interactive Pose Warping
+# SPGA — real research method + interactive web viewer
 
-A static, browser-based demonstration of **Skill-Preserving Geometric Adaptation (SPGA)**, ready for GitHub Pages. The browser uses a simplified visual solver, **not** the archived Python SPGA-M2 force-balance implementation.
+This repository contains **the SPGA-M3 pose-warping research METHOD** and a browser visualization. The original M3 solver is Python, in `backend/spga/`, and the UI is a static GitHub Pages website.
 
-## Beginner tutorial
+**No main-experiment suites, 1,920-trial outputs, 40-path batch runners, or result archives are included.** The only test file is `backend/tests/test_real_m3_api.py`, a small method/API validation.
 
-Select **Beginner Tutorial** in the top bar, confirm **Start tutorial**, and follow the seven highlighted steps. The tutorial does not reset the scene and allows visitors to interact with each control. Use **Next**, **Back**, **Skip**, or **Escape**.
+## Architecture
 
-1. **Surface:** choose Hill or Saddle, or draw a 2D profile extruded into 3D. Orbit to view; Move / Rotate to edit the surface.
-2. **Guide:** move/rotate the cutting plane and choose the yellow curve where the skill will be placed.
-3. **Nominal:** draw or import a 2D/3D A0 skill; contact anchors are at the endpoints for lifted skills. The three white handles create a C¹-smooth curve. All-contact mode follows Guide as A0 and allows an A1 orientation sketch.
-4. **Tilted:** place repeated nominal primitives along the Guide; the interior A0 points are not projected onto the target surface.
-5. **Warp:** compute an outward-only geometric correction with approximate Conic and Ribbon trade-offs.
-6. **Playback:** select poses, view a single cone, and compare Tilted with Warped rods.
-7. **Force Balance:** adjust Geometry, cone half-angle, Conic restoring, Ribbon tension and Ribbon bending; the browser recomputes the example live.
-
-## Main features
-
-- In-browser 3D viewer, interactive surface transforms, 2D surface profile sketches, and Hill / Saddle presets.
-- Independent Guide and Nominal paths; lifted-skill and all-contact modes.
-- 3D spiral, half-circle, freehand Nominal and ordered CSV importing. See `examples/nominal_3d_spiral.csv`.
-- Selectable poses with Conic visualization; live tool angle (0–180° relative to surface tangent) and length changes.
-- Real-time demonstration balance sliders, trajectory playback, geometry diagnostics, and JSON export.
-- No application backend: works on static hosting such as GitHub Pages.
-
-## Run locally
-
-Open via any local HTTP server (ES modules require HTTP, not `file://`):
-
-```bash
-python3 -m http.server 8000
+```
+Website / GitHub Pages
+  Surface mesh + Nominal / Tilted A0,A1 + parameters
+    -> POST /api/warp
+  Python API (backend/app.py)
+    -> SPGA M3: BVH + visibility + multi-normal field
+    -> dual-arc + conic + ribbon + fixed-length projection
+    -> iterative force equilibrium
+    -> Warped A0,A1 and convergence diagnostics
+  Website
+    -> real warped poses, pose inspector and playback
 ```
 
-Then visit `http://localhost:8000`. Run the geometry tests with `npm test` (Node.js required).
+The browser **does not reproduce the solver**. `src/real-m3.js` calls the Python API. The old simplified JS implementation may remain in `src/geometry.js` for historical reference, but `src/app.js` on this branch does not call its `warpDemo` function.
 
-## Deploy to GitHub Pages
+## Run the method
 
-Use `Settings → Pages → Deploy from a branch`, choose `main` and `/(root)`. After deployment the site will be available at your repository's Pages URL.
+Python 3.12:
 
-## Research boundary
+```bash
+cd backend
+python -m pip install -r requirements.txt
+uvicorn app:api --host 0.0.0.0 --port 8080
+curl http://localhost:8080/api/health
+```
 
-The browser weights and the simplified pose search demonstrate qualitative SPGA trade-offs, but they are **not** calibrated to the fixed research solver. Collision checks sample the rendered rod and are not a formal safety guarantee. For quantitative scientific results, run the archived Python SPGA-M2 implementation.
+or via Docker:
 
-## Force visualizations (v5)
+```bash
+docker build -t spga-m3 ./backend
+docker run --rm -p 8080:8080 -e PORT=8080 spga-m3
+```
 
-The right-hand **Force Balance** section presents three independent SVG diagrams that respond immediately to the sliders:
+Run unit/API tests:
 
-- **Geometry (Fᵍ)** shows an outward normal correction arrow. Increasing Geometry enlarges the arrow.
-- **Conic restoring (Fᶜ)** shows a large cone centered on the Tilted tool axis. **Cone half-angle β** changes the cone aperture; **Conic restoring** lengthens the arrow that points toward its center axis.
-- **Ribbon tension (Fʳ)** shows a semicircular ribbon becoming shallower as the tension slider increases, with larger outward pull arrows. This is a **visual metaphor**, not a claim that the SPGA Ribbon term geometrically flattens the nominal trajectory; the actual term penalizes changes between adjacent poses.
+```bash
+cd backend
+python -m pip install pytest httpx
+PYTHONPATH=. pytest -q tests/test_real_m3_api.py
+```
 
-Illustrated arrows are proportional to the **browser control values**, not measured physical force. The independent tutorial's final step explains how to use them. These illustrations do not modify the frozen Python solver.
+## Make the live GitHub Pages viewer use M3
+
+GitHub Pages is static and **cannot run Python**. Deploy `backend/` to a persistent HTTPS compute service such as Render, Cloud Run, or your own host, then set the service URL in `src/m3-config.js`:
+
+```js
+export const SPGA_M3_BACKEND_URL = 'https://YOUR-HTTPS-SERVICE.example.com';
+```
+
+Configure server CORS using `SPGA_CORS_ORIGINS`. The default permits `https://bayleen.github.io` and local development.
+
+Until the backend is running, pressing Warp on this branch deliberately shows an error (never fake M3 output). GitHub Pages itself remains available for interactive visual editing.
+
+## Scientific boundary
+
+- Solver functions `build_conic_from_tilted` and `warp_with_conic` come from the uploaded 2026-11-02 M3 research code, with its multi-normal field.
+- The website generates a custom triangulated scene (21×21 vertices) rather than the experimental Bunny mesh. Thus website metrics are **not** the paper's Bunny results.
+- Scene scale is `1 display unit = 0.05 m`. Server force balance and length constraints are calculated in metres.
+- Penetration numbers shown by the website are renderer-sampled indicators, not certified collision safety.
+- The API reports actual convergence mode, iteration count and projected force residual; max-iteration cases are marked **not converged**.
+- Interactive force diagrams are **schematic illustrations**, not logged per-iteration force magnitudes. The website can be extended with server diagnostics later.
+- The public API needs deployment-side access control, request quotas and compute-budget safeguards if exposed broadly.
+
+## Source layout
+
+- `backend/spga/`: essential original M3 method modules.
+- `backend/configs/milestone_m3.json`: original M3 method configuration.
+- `backend/app.py`: mesh/pose conversion + async solver API.
+- `backend/tests/`: small correctness checks (not scientific experiments).
+- `src/app.js`, `src/real-m3.js`: viewer and bridge.
+- `src/m3-config.js`: backend address.
