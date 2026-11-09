@@ -1,51 +1,115 @@
-import { getMesh } from './geometry.js';
-import { SPGA_M3_BACKEND_URL } from './m3-config.js';
+import {getMesh,add,sub,mul,norm,mix,clamp} from './geometry.js';
+import {SPGA_M3_BACKEND_URL} from './m3-config.js';
 
-const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
+// Default: run the ORIGINAL Python M3 method in a browser Web Worker.
+// Optionally configure an HTTPS Python API for high-throughput full research runs.
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let active=null,serial=0;
 
-/** Call the actual Python SPGA-M3 solver; never use the JS approximation. */
-export async function computeM3(state, onStatus=()=>{}, isStale=()=>false) {
-  const base=SPGA_M3_BACKEND_URL.trim().replace(/\/$/,'');
-  if (!/^https?:\/\//.test(base)) {
-    throw new Error('M3 backend not configured. Set SPGA_M3_BACKEND_URL in src/m3-config.js.');
+function chooseIndices(poses,limit){
+  if(poses.length<=limit)return poses.map((_,i)=>i);
+  const selected=new Set([0,poses.length-1]);
+  // Fixed A0 anchors must ALWAYS be solved, not approximated.
+  poses.forEach((p,i)=>{if(p.contact)selected.add(i);});
+  const n=Math.max(limit,selected.size);
+  for(let j=0;j<n;j++)selected.add(Math.round(j*(poses.length-1)/(n-1)));
+  return [...selected].sort((a,b)=>a-b);
+}
+
+function renderPreview(poses,solved,ids,L){
+  // Only for explicitly labelled FAST PREVIEW. M3 solves the selected poses;
+  // corrections for intervening rendered poses are interpolated, not simulated.
+  const byIndex=new Map(ids.map((id,i)=>[id,solved[i]]));
+  const out=[];let k=0;
+  for(let i=0;i<poses.length;i++){
+    if(byIndex.has(i)){out.push(byIndex.get(i));continue;}
+    while(k<ids.length-2&&ids[k+1]<i)k++;
+    const il=ids[k],ir=ids[k+1],t=(i-il)/(ir-il);
+    const p=poses[i],a=poses[il],b=poses[ir],wa=byIndex.get(il),wb=byIndex.get(ir);
+    const a0=p.contact?p.a0:add(p.a0,mix(sub(wa.a0,a.a0),sub(wb.a0,b.a0),t));
+    const axis=norm(mix(wa.axis,wb.axis,t));
+    const a1=add(a0,mul(axis,L));
+    const deviationDeg=Math.acos(clamp(axis.x*p.axis.x+axis.y*p.axis.y+axis.z*p.axis.z,-1,1))*180/Math.PI;
+    out.push({a0,a1,axis,contact:p.contact,passId:p.passId,deviationDeg});
   }
-  // The research solver receives real triangles and real Tilted dual-arc poses.
-  // N=21 (800 faces) is the web scene discretization; shown in exported metadata.
-  const mesh=getMesh(state.surface,21);
+  return out;
+}
+
+function sceneRequest(state){
+  const full=state.m3Quality==='full';
+  const resolution=full?21:9;
+  const mesh=getMesh(state.surface,resolution);
+  const ids=full?state.tilted.map((_,i)=>i):chooseIndices(state.tilted,18);
+  const poses=ids.map(i=>state.tilted[i]);
   const payload={
-    verts: mesh.verts,
-    faces: mesh.faces,
-    poses:state.tilted.map(p=>({a0:p.a0,a1:p.a1,contact:p.contact,passId:p.passId})),
-    rodLength:state.rodLength,
-    coneAngle:state.coneAngle,
-    gains:{
-      geometry:state.geometryGain,
-      conic:state.conicGain,
-      tension:state.tensionGain,
-      bending:state.bendingGain,
-    },
-    maxIterations:3000,
+    verts:mesh.verts,faces:mesh.faces,
+    poses:poses.map(p=>({a0:p.a0,a1:p.a1,contact:p.contact,passId:p.passId})),
+    rodLength:state.rodLength,coneAngle:state.coneAngle,
+    gains:{geometry:state.geometryGain,conic:state.conicGain,
+      tension:state.tensionGain,bending:state.bendingGain},
+    maxIterations:full?3000:20
   };
-  onStatus('Submitting actual SPGA-M3 job…');
-  const start=await fetch(base+'/api/warp', {
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
-  });
-  const startData=await start.json().catch(()=>({}));
-  if(!start.ok)throw new Error(startData.detail || `M3 API error ${start.status}`);
-  if(!startData.jobId)throw new Error('M3 API did not return a job ID');
-  for(let polls=0; polls<1800;polls++){
+  return {payload,ids,full,resolution};
+}
+
+async function viaServer(base,payload,onStatus,isStale){
+  const startResp=await fetch(base+'/api/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const job=await startResp.json();
+  if(!startResp.ok)throw Error(job.detail||'Server error: '+startResp.status);
+  for(let poll=0;poll<1800;poll++){
     if(isStale())return null;
     await sleep(1200);
     if(isStale())return null;
-    const r=await fetch(base+'/api/warp/'+encodeURIComponent(startData.jobId));
-    const job=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(job.detail||`M3 polling error ${r.status}`);
-    if(job.status==='complete'){
-      if(!job.result?.warped?.length)throw new Error('M3 returned no poses');
-      return job.result;
-    }
-    if(job.status==='error')throw new Error(job.error||'M3 solver failed');
-    if(polls%4===0)onStatus('M3 computing actual force balance…');
+    const r=await fetch(base+'/api/warp/'+encodeURIComponent(job.jobId));
+    const response=await r.json();
+    if(!r.ok)throw Error(response.detail||'Server query error: '+r.status);
+    if(response.status==='complete')return response.result;
+    if(response.status==='error')throw Error(response.error||'M3 solver error');
+    if(poll%5===0)onStatus('Computing original Python M3 force balance on server…');
   }
-  throw new Error('M3 job polling timed out');
+  throw Error('Server polling timed out');
+}
+
+function viaBrowser(payload,onStatus,isStale){
+  const id=++serial;
+  if(active){active.worker.terminate();active.done(null);active=null;}
+  const worker=new Worker(new URL('./m3-browser-worker.js',import.meta.url));
+  return new Promise((resolve,reject)=>{
+    let finished=false;
+    const finish=(fn,value)=>{
+      if(finished)return;
+      finished=true;
+      clearInterval(timer);
+      if(active?.id===id)active=null;
+      fn(value);
+    };
+    active={id,worker,done:v=>finish(resolve,v)};
+    worker.onmessage=ev=>{
+      if(ev.data.id!==id)return;
+      if(ev.data.type==='progress')onStatus(ev.data.message);
+      if(ev.data.type==='result'){worker.terminate();finish(resolve,ev.data.result);}
+      if(ev.data.type==='error'){worker.terminate();finish(reject,Error(ev.data.message));}
+    };
+    worker.onerror=ev=>{worker.terminate();finish(reject,Error(ev.message||'Python worker failed'));};
+    const timer=setInterval(()=>{if(isStale()){worker.terminate();finish(resolve,null);}},250);
+    worker.postMessage({id,payload});
+  });
+}
+
+export async function computeM3(state,onStatus=()=>{},isStale=()=>false){
+  const {payload,ids,full,resolution}=sceneRequest(state);
+  const base=SPGA_M3_BACKEND_URL.trim().replace(/\/$/,'');
+  onStatus((full?'FULL':'FAST PREVIEW')+': original SPGA-M3 on '+ids.length+'/'+state.tilted.length+' poses; '+payload.maxIterations+' max iterations.');
+  const solved=base?await viaServer(base,payload,onStatus,isStale):await viaBrowser(payload,onStatus,isStale);
+  if(!solved||isStale())return null;
+  if(!Array.isArray(solved.warped)||solved.warped.length!==ids.length)throw Error('Incorrect M3 pose count');
+  const previewInterpolated=!full&&ids.length<state.tilted.length;
+  return {
+    ...solved,
+    warped:previewInterpolated?renderPreview(state.tilted,solved.warped,ids,state.rodLength):solved.warped,
+    diagnostics:{...solved.diagnostics,
+      executor:base?'Native Python HTTPS':'Python WebAssembly in browser',
+      meshResolution:resolution,solvedPoses:ids.length,totalPoses:state.tilted.length,
+      previewInterpolated,fullSolve:full}
+  };
 }
