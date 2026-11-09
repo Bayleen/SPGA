@@ -85,3 +85,9 @@ input:disabled{opacity:.52;cursor:not-allowed}
 .quick-example:hover{background:linear-gradient(115deg,#85f0e3,#c0fae7);
   border-color:#befce9;transform:translateY(-1px)}
 .quick-note{margin:0 0 12px!important;color:#9fcfc6!important}
+
+/* Welcome action always visible without scrolling the workflow sidebar. */
+.topactions .quick-top{background:linear-gradient(105deg,#247b82,#2d645f);color:#d8fff5;
+ border-color:#5caea0;font-size:11px;font-weight:850;white-space:nowrap}
+.topactions .quick-top:hover{background:linear-gradient(105deg,#319899,#368374)}
+@media(max-width:620px){.topactions .quick-top{padding:8px;font-size:10px}}
