@@ -10,7 +10,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><div class="brand-icon">S<span>·</span></div><div><strong>SPGA</strong><small>SKILL-PRESERVING POSE WARPING</small></div></div>
-  <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> RESEARCH M3 SOLVER</div>
+  <div class="topmiddle"><span class="online-dot"></span> BROWSER-BASED 3D STUDIO <span class="divider">/</span> INTERACTIVE RESEARCH DEMO</div>
   <div class="topactions"><button id="btnTutorial" class="tutorial-trigger">✦ Beginner Tutorial</button><button id="btnReset" class="quiet">↺ Reset</button><button id="btnExport" class="outline">↗ Export JSON</button></div>
 </header>
 <main class="app">
@@ -32,16 +32,16 @@
   </section>
   <section class="card" id="tutorialGuide"><div class="card-title"><b class="step">02</b><h3>Guide <small>Placement path on the surface</small></h3></div>
     <p class="helper">The yellow Guide follows the intersection of the cutting plane and the surface. You can also sketch lateral offsets. The Guide is not the Nominal Skill.</p>
-    <label class="slider-row">Cut angle <output id="cutAngleVal">0°</output><input id="cutAngle" type="range" min="-90" max="90" value="0" step="2" /></label>
-    <label class="slider-row">Plane offset <output id="cutOffsetVal">0.00</output><input id="cutOffset" type="range" min="-1.8" max="1.8" value="0" step="0.05" /></label>
+    <label class="slider-row">Cut angle <output id="cutAngleVal">60°</output><input id="cutAngle" type="range" min="-90" max="90" value="60" step="2" /></label>
+    <label class="slider-row">Plane offset <output id="cutOffsetVal">0.50</output><input id="cutOffset" type="range" min="-1.8" max="1.8" value="0.5" step="0.05" /></label>
     <label class="slider-row">Guide stroke width <output id="amplitudeVal">0.70</output><input id="strokeAmp" type="range" min="0" max="1.5" value="0.7" step="0.05" /></label>
     <div class="grid2"><button id="btnGuide" class="action-soft">⊞ Select cut guide</button><button id="btnDrawGuide" class="action-soft">✎ Draw guide A0</button></div>
     <div class="stroke-thumbnail"><canvas id="smallStroke" width="292" height="70"></canvas><span>Guide (2D offset)</span></div>
   </section>
   <section class="card" id="tutorialNominal"><div class="card-title"><b class="step">03</b><h3>Nominal Skill <small>Original A0 path</small></h3></div>
-    <p class="helper">Independent of the Guide. Start and end points are contacts; intermediate A0 points may lift away from the surface.</p>
-    <div class="segmented" id="taskModes"><button data-task="skill" class="active">Lifted skill</button><button data-task="contact">All-contact</button></div>
-    <div id="liftSkillControls">
+    <p class="helper">Choose All-contact for a surface-following skill, or Lifted skill for a nominal primitive with contact endpoints. The Guide and Nominal remain independent.</p>
+    <div class="segmented" id="taskModes"><button data-task="skill">Lifted skill</button><button data-task="contact" class="active">All-contact</button></div>
+    <div id="liftSkillControls" hidden>
       <div class="grid2"><button id="btnDrawTraj" class="action-soft">✎ Draw nominal</button><button id="btnNominal3D" class="action-soft">◇ 3D edit</button></div>
       <div class="grid2 spaced"><button id="btnHalf" class="action-soft">⌒ Half-circle</button><button id="btnSpiral" class="action-soft">◎ 3D spiral</button></div>
       <button id="btnImportCSV" class="action-soft fullwidth">↑ Import Nominal CSV</button>
@@ -50,8 +50,8 @@
       <label class="slider-row">Brush curve tension <output id="brushTensionVal">0.35</output><input id="brushTension" type="range" min="0" max="1" value="0.35" step="0.05" /></label>
       <p class="edit-hint" id="skillEditHint">Each repeated pass shows just three white control points (¼, ½, ¾). Dragging one updates the shared skill through a C¹-smooth curve. Contact endpoints stay fixed.</p>
     </div>
-    <div id="contactSkillControls" hidden><p class="helper">The Guide becomes the all-contact A0 path. You may draw the Guide and separately sketch A1 orientation; the rod length stays fixed.</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
-    <div class="skill-banner" id="nominalSummary">Nominal: 3D half-circle · endpoints contact</div>
+    <div id="contactSkillControls"><p class="helper">The Guide becomes the all-contact A0 path. You may draw the Guide and separately sketch A1 orientation; the rod length stays fixed.</p><button id="btnDrawA1" class="action-soft fullwidth">✎ Draw A1 orientation</button></div>
+    <div class="skill-banner" id="nominalSummary">All-contact: A0 follows the Guide · 81 contact poses</div>
   </section>
   <section class="card" id="tutorialTool"><div class="card-title"><b class="step">04</b><h3>Tool & Warping <small>Pose adaptation</small></h3></div>
     <p class="helper">For lifted skills, only A0 samples marked by the contact mask are anchored. In all-contact mode, every A0 stays in contact. Rod length is fixed.</p>
@@ -61,22 +61,24 @@
     
     <p class="helper">0° = forward along the surface tangent; 90° = outward surface normal; 180° = backward along the tangent. Angle is measured relative to the surface, not the normal.</p>
     <label class="check" style="display:none"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
-    <label class="slider-row" style="display:block;margin-top:12px">M3 solver mode
+    <label class="slider-row" style="display:block;margin-top:12px">SPGA computation mode
  <select id="m3Quality" style="width:100%;margin-top:6px;background:#121e2e;color:#e5f1fa;border:1px solid #34445b;border-radius:8px;padding:9px">
-  <option value="preview" selected>Fast M3 Preview — sampled poses, 20 iterations</option>
-  <option value="full">Full Research M3 — all poses, up to 3000 iterations</option>
+  <option value="preview" selected>Fast Preview — up to 20 iterations</option>
+  <option value="full">Full Solve — all poses, up to 3000 iterations</option>
  </select>
 </label>
-<p class="helper">Both modes execute original Python M3. Fast Preview solves ~18 poses, then interpolates remaining poses for display (not scientific results). Full runs every pose; without an accelerated server it can take a long time.</p>
-<div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent" title="Runs or restarts real M3. Never locked during computation.">2. Run SPGA M3 ✦</button></div>
+<p class="helper">Fast Preview runs the real Python solver with a 20-iteration budget; intermediate display poses may be interpolated for lifted skills. Full Solve computes every pose for up to 3,000 iterations. The default all-contact example is recorded from the original solver for instant playback (20 iterations, not converged).</p>
+<button id="btnQuickDemo" class="action-primary quick-example" title="Restore the default Hill example and show its precomputed real SPGA result">⚡ View instant SPGA example</button>
+<p class="helper quick-note">One click: Hill · All-contact · Guide 60° / 0.50 / 0.70 · Cone 30°. Recorded real SPGA computation; not a convergence claim.</p>
+<div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent" title="Runs real SPGA computation (instant for the recorded default).">2. Warp with SPGA ✦</button></div>
 <div class="m3-progress-card" id="m3ProgressPanel" role="status" aria-live="polite" aria-atomic="false">
-  <div class="m3-progress-heading"><strong id="m3ProgressTitle">M3 ready</strong><span id="m3ProgressElapsed">0s</span></div>
-  <p id="m3ProgressDetail">Generate Tilted, then run the original Python M3 solver.</p>
-  <div id="m3ProgressTrack" class="m3-progress-track" role="progressbar" aria-label="M3 execution stage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="m3-progress-heading"><strong id="m3ProgressTitle">SPGA ready</strong><span id="m3ProgressElapsed">0s</span></div>
+  <p id="m3ProgressDetail">Generate Tilted, then run SPGA. The default example loads instantly.</p>
+  <div id="m3ProgressTrack" class="m3-progress-track" role="progressbar" aria-label="SPGA computation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
     <div id="m3ProgressFill" class="m3-progress-fill"></div>
   </div>
-  <div class="m3-progress-bottom"><span id="m3ProgressMeta">Waiting for Tilted</span><button type="button" id="btnCancelM3" class="m3-cancel" hidden>✕ Cancel M3</button></div>
-  <p class="m3-progress-note">Progress shows actual loading stages and M3 iterations / maximum budget, not an estimated finish time.</p>
+  <div class="m3-progress-bottom"><span id="m3ProgressMeta">Waiting for Tilted</span><button type="button" id="btnCancelM3" class="m3-cancel" hidden>✕ Cancel</button></div>
+  <p class="m3-progress-note">Progress shows real calculation stages and iterations, not an estimated finish time.</p>
 </div>
   </section>
  </aside>
@@ -92,7 +94,7 @@
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
       <div class="pose-selection-bar"><label class="check compact"><input id="showConic" type="checkbox" checked/> ◎ Show selected conic</label><label class="check compact"><input id="focusPose" type="checkbox" checked/> Focus one pose</label><span>Click a pose / rod in 3D to inspect its cone · β = <b id="coneBadge">40°</b></span></div>
-      <div class="notice"><span class="notice-dot"></span><span><b>Original research SPGA M3 Python.</b> Runs directly inside GitHub Pages via WebAssembly: geometry field, visibility/BVH, conic, ribbon and fixed-length force balance. Fast Preview interpolates some display poses; switch to Full Research M3 for every pose. No server required.</span></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Original Python SPGA solver.</b> Runs directly in the browser using WebAssembly: continuous geometry field, visibility/BVH, conic, ribbon and fixed-length force balance. The recorded default preview is instant; edit any input to calculate a new result.</span></div>
    </div>
  </section>
  <aside class="sidebar right">
@@ -116,7 +118,7 @@
     </section>
    <section class="card balance-card" id="tutorialBalance">
      <div class="section-head">FORCE BALANCE <span class="micro">SCHEMATIC (NOT SOLVER FORCES)</span></div>
-     <p class="helper">Geometry pushes outward; Conic favors the Tilted axis; Ribbon resists changes between neighboring poses. These controls recompute the browser Warp and <strong>are not the calibrated Python M2 gains</strong>.</p>
+     <p class="helper">Geometry pushes outward; Conic favors the Tilted axis; Ribbon resists changes between neighboring poses. These controls scale the corresponding terms in the original Python SPGA solver.</p>
      <div class="force-illustration">
        <div class="force-visual-header"><b>GEOMETRY <span>Fᵍ</span></b><small>Outward-only response</small></div>
        <svg viewBox="0 0 300 103" class="force-visual-svg" role="img" aria-label="Geometry illustration: an outward normal pushes a penetrating rod point above a wavy surface">
@@ -155,7 +157,7 @@
          <text x="12" y="183" fill="#8faec1" font-size="10">β changes cone width · Fᶜ changes arrow length</text>
        </svg>
      </div>
-     <label class="slider-row">Cone half-angle <output id="coneVal">40°</output><input id="coneAngle" type="range" min="5" max="85" value="40" step="1" /></label>
+     <label class="slider-row">Cone half-angle <output id="coneVal">30°</output><input id="coneAngle" type="range" min="5" max="85" value="30" step="1" /></label>
      <label class="slider-row">Conic restoring <output id="conicVal">1.00×</output><input id="conicGain" type="range" min="0" max="4" step="0.1" value="1" /></label>
      <p class="parameter-hint">β controls the allowed cone; Fᶜ pulls orientation back toward the Tilted axis. The arrow shows <em>relative</em> gain, not measured force.</p>
      <div class="force-illustration ribbon-illustration">
