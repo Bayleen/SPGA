@@ -29,7 +29,7 @@ async function init(id){
   // Make the research Numba decorators transparent in Pyodide. This executes
   // the exact same research BVH ray-intersection function, without JIT.
   py.runPython("import sys,types; stub=types.ModuleType('numba'); stub.njit=lambda *a,**kw: lambda f:f; sys.modules['numba']=stub; sys.path.insert(0,'/home/pyodide/backend'); import browser_bridge");
-  tell(id,'SPGA-M3 Python ready.');
+  tell(id,'SPGA-M3 Python ready.','sources');
   return py;
 }
 self.onmessage=async ev=>{
