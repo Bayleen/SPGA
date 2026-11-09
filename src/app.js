@@ -5,7 +5,7 @@ const $ = id=>document.getElementById(id);
 const stage=$('stage'),canvas=$('sceneCanvas'),ctx=canvas.getContext('2d',{alpha:false});
 const sketch=$('drawCanvas'),dc=sketch.getContext('2d');
 const state={surface:{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1},
- stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),baseNominal:makeSkillExample('half'),nominal:makeSkillExample('half'),editHandles:[{v:0,w:0},{v:0,w:0},{v:0,w:0}],brushTension:.35,skillName:'Half-circle',taskMode:'skill',a1Stroke:null,repeats:3,edit3D:false,selected:null,selectedManually:false,showConic:true,focusPose:true,preview:null,guide:null,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,
+ stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),baseNominal:makeSkillExample('half'),nominal:makeSkillExample('half'),editHandles:[{v:0,w:0},{v:0,w:0},{v:0,w:0}],brushTension:.35,skillName:'Half-circle',taskMode:'contact',a1Stroke:null,repeats:3,edit3D:false,selected:null,selectedManually:false,showConic:true,focusPose:true,preview:null,guide:null,cutAngle:60,cutOffset:.5,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:30,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,
  mode:'orbit',viewLocked:false,warpRequested:false,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)},mesh:null,cut:null,contacts:[],tilted:[],warped:[],pose:0,
  playing:false,playClock:0,lastM3Diagnostics:null,m3Quality:'preview',showBoth:true,planeVisible:true,gridVisible:true,
  layers:{surface:true,plane:true,guide:true,nominal:true,tilt:true,warp:true},drag:null,dirty:true};
@@ -23,13 +23,13 @@ function showM3Progress(phase,message='',info={}){
  if(active&&!m3Ticker)m3Ticker=setInterval(m3Clock,1000);
  if(!active&&m3Ticker){clearInterval(m3Ticker);m3Ticker=null;}
  m3Clock();
- const names={idle:'M3 ready',queued:'Update queued',preparing:'Preparing scene',runtime:'Loading Python',packages:'Loading NumPy / SciPy',sources:'Loading original M3',solving:'M3 force balance',rendering:'Rendering results',done:'M3 finished',error:'M3 error',cancelled:'M3 cancelled'};
+ const names={idle:'SPGA ready',queued:'Update queued',preparing:'Preparing scene',runtime:'Loading Python',packages:'Loading NumPy / SciPy',sources:'Loading SPGA method',solving:'SPGA force balance',rendering:'Rendering results',done:'SPGA finished',error:'SPGA error',cancelled:'SPGA cancelled'};
  const stages={idle:0,queued:2,preparing:6,runtime:15,packages:29,sources:45,solving:55,rendering:95,done:100,error:0,cancelled:0};
  const n=Number(info.iteration),max=Number(info.maxIterations);
  const hasIterations=phase==='solving'&&Number.isFinite(n)&&Number.isFinite(max)&&max>0;
  const percent=hasIterations?55+Math.round(37*clamp(n/max,0,1)):(stages[phase]??0);
  $('m3ProgressPanel').dataset.stage=phase;
- $('m3ProgressTitle').textContent=names[phase]||'SPGA M3';
+ $('m3ProgressTitle').textContent=names[phase]||'SPGA';
  $('m3ProgressDetail').textContent=message||names[phase];
  $('m3ProgressFill').style.width=percent+'%';
  $('m3ProgressFill').classList.toggle('solving',phase==='solving');
@@ -38,7 +38,7 @@ function showM3Progress(phase,message='',info={}){
  const phaseText={idle:'Waiting for Tilted',queued:'Waiting to restart',preparing:'Stage 1 / 5',runtime:'Stage 2 / 5',packages:'Stage 2 / 5',sources:'Stage 3 / 5',solving:'Stage 4 / 5',rendering:'Stage 5 / 5',done:'Finished',error:'Retry available',cancelled:'Retry available'};
  $('m3ProgressMeta').textContent=hasIterations?'Iteration '+Math.trunc(n)+' / max '+Math.trunc(max):(phaseText[phase]||'');
  $('btnWarp').disabled=false; // Never leave an unusable gray button after stale async jobs.
- $('btnWarp').textContent=active?'↻ Restart SPGA M3':'2. Run SPGA M3 ✦';
+ $('btnWarp').textContent=active?'↻ Restart SPGA':'2. Warp with SPGA ✦';
  $('btnCancelM3').hidden=!active;
 }
 // Editable at every stage. Geometry changes keep the generated results alive.
@@ -49,7 +49,7 @@ function scheduleLiveWarp(){
  cancelQueuedWarp();
  if(!state.warpRequested||!state.tilted.length)return;
  if(m3Running){activeM3Request++;cancelM3();m3Running=false;}
- showM3Progress('queued','Parameters changed; restarting M3 after edits settle.');
+ showM3Progress('queued','Parameters changed; restarting SPGA after edits settle.');
  const version=warpGeneration;
  $('sceneStatus').textContent='UPDATING';
  warpTimer=setTimeout(()=>{
@@ -139,8 +139,8 @@ function generateTilted(announce=true){
  if(announce){state.warpRequested=false;cancelQueuedWarp();}
  else state.warpRequested=hadWarp;
  updateMetric();updateFrame();state.dirty=true;
- if(announce)showM3Progress('idle','Tilted ready: '+state.tilted.length+' poses. Press Run SPGA M3.');
- else if(wasM3Running)showM3Progress('queued','Tilted changed; M3 will restart on the new trajectory.');
+ if(announce)showM3Progress('idle','Tilted ready: '+state.tilted.length+' poses. Press Warp with SPGA.');
+ else if(wasM3Running)showM3Progress('queued','Tilted changed; SPGA will restart on the new trajectory.');
  if(announce)toast(`Tilted: ${state.tilted.length} poses. Edit the Surface, Guide, Nominal or tool; results update live.`);
  return true;
 }
@@ -150,17 +150,17 @@ async function warp(announce=true){
   cancelQueuedWarp();cancelM3();state.warpRequested=true;
   const jobGeneration=++activeM3Request;
   m3Running=true;m3StartedAt=performance.now();
-  showM3Progress('preparing','Preparing mesh and M3 input poses.');
+  showM3Progress('preparing','Preparing mesh and SPGA input poses.');
   const previous=state.warped;
-  $('sceneStatus').textContent='M3 RUNNING';
-  $('metricHint').textContent='Real SPGA M3: computing real M3 force balance in Python WebAssembly.';
+  $('sceneStatus').textContent='SPGA RUNNING';
+  $('metricHint').textContent='SPGA: calculating geometric adaptation using the original Python force-balance solver.';
   // The M3 button stays clickable: pressing again restarts the run.
   try {
     const result=await computeM3(state,
       (msg,meta={})=>{if(jobGeneration===activeM3Request){$('metricHint').textContent=msg;showM3Progress(meta.phase||'preparing',msg,meta);}},
       ()=>jobGeneration!==activeM3Request);
     if(jobGeneration!==activeM3Request||!result)return;
-    if(result.warped.length!==state.tilted.length)throw new Error('M3 pose count mismatch');
+    if(result.warped.length!==state.tilted.length)throw new Error('SPGA pose count mismatch');
     state.warped=result.warped;
     state.lastM3Diagnostics=result.diagnostics;
     if(announce&&!state.selectedManually)state.pose=mostRelevantPose();
@@ -175,19 +175,19 @@ async function warp(announce=true){
     if(!announce&&n&&!state.selectedManually&&largest>.01)state.pose=largestI;
     updateMetric();updateFrame();updateForceDiagram();state.dirty=true;
     const d=result.diagnostics;
-    $('sceneStatus').textContent=d.previewInterpolated?'M3 PREVIEW':(d.converged?'M3 BALANCED':'M3 ITER LIMIT');
-    $('sliderEffectHint').textContent=`Real M3: ${d.iterations} iterations; ${d.mode}; projected residual ${Number(d.force_residual).toExponential(2)}. ${n?changed+'/'+n+' updated poses':''}`;
-    $('metricHint').textContent=`Original Python SPGA-M3 · ${d.iterations} iterations · ${d.converged?'force-balanced':'NOT converged'}. ${d.previewInterpolated?'PREVIEW: '+d.solvedPoses+'/'+d.totalPoses+' poses solved by M3; others interpolated for visualization only.':'FULL: all '+d.solvedPoses+' poses solved with M3.'} Penetration is renderer-sampled, not a safety guarantee.`;
-    m3Running=false;showM3Progress('done',`Original M3 finished: ${d.iterations} iterations · ${d.mode}.`);
-    if(announce)toast(`SPGA M3: ${state.warped.length} poses; ${d.mode}.`);
+    $('sceneStatus').textContent=d.recordedPreset?'RECORDED PREVIEW':(d.previewInterpolated?'SPGA PREVIEW':(d.converged?'BALANCED':'ITER LIMIT'));
+    $('sliderEffectHint').textContent=`SPGA: ${d.iterations} iterations; ${d.mode}; projected residual ${Number(d.force_residual).toExponential(2)}. ${n?changed+'/'+n+' updated poses':''}`;
+    $('metricHint').textContent=`${d.recordedPreset?'Recorded original Python SPGA example':'Original Python SPGA'} · ${d.iterations} iterations · ${d.converged?'force-balanced':'NOT converged'}. ${d.recordedPreset?'All '+d.solvedPoses+' contact poses solved beforehand. Genuine 20-iteration preview, not converged.':d.previewInterpolated?'FAST PREVIEW: '+d.solvedPoses+'/'+d.totalPoses+' poses solved; other poses interpolated only for playback.':'All '+d.solvedPoses+' poses solved by the original method.'} Penetration is renderer-sampled, not a safety guarantee.`;
+    m3Running=false;showM3Progress('done',`${d.recordedPreset?'Recorded SPGA example loaded instantly':'SPGA computation finished'} · ${d.iterations} iterations · ${d.mode}.`);
+    if(announce)toast(`SPGA: ${state.warped.length} poses; ${d.recordedPreset?'recorded preview':'mode '+d.mode}.`);
   }catch(err){
     if(jobGeneration!==activeM3Request)return;
     state.warped=[];state.warpRequested=false;state.lastM3Diagnostics=null;
     updateMetric();updateFrame();state.dirty=true;
-    $('sceneStatus').textContent='M3 ERROR';
-    $('metricHint').textContent='M3 Python: '+err.message;
-    m3Running=false;showM3Progress('error','M3 Python: '+err.message);
-    toast('Real M3 unavailable: '+err.message);
+    $('sceneStatus').textContent='SPGA ERROR';
+    $('metricHint').textContent='SPGA Python: '+err.message;
+    m3Running=false;showM3Progress('error','SPGA Python: '+err.message);
+    toast('SPGA computation unavailable: '+err.message);
   }finally{
     if(jobGeneration===activeM3Request)m3Running=false;
   }
@@ -196,9 +196,9 @@ function stopM3(){
  activeM3Request++;cancelQueuedWarp();cancelM3();m3Running=false;
  state.warpRequested=false;state.warped=[];state.lastM3Diagnostics=null;
  updateMetric();updateFrame();state.dirty=true;
- $('sceneStatus').textContent='M3 CANCELLED';
- showM3Progress('cancelled','M3 cancelled. Press Run SPGA M3 to try again.');
- toast('M3 cancelled.');
+ $('sceneStatus').textContent='CANCELLED';
+ showM3Progress('cancelled','SPGA cancelled. Press Warp with SPGA to try again.');
+ toast('SPGA cancelled.');
 }
 function updateEditorLock(){
  state.viewLocked=false;
@@ -466,10 +466,16 @@ $('m3Quality').addEventListener('change',e=>{
  state.m3Quality=e.target.value;activeM3Request++;cancelQueuedWarp();cancelM3();m3Running=false;
  state.warped=[];state.warpRequested=false;state.lastM3Diagnostics=null;
  updateMetric();updateFrame();updateUI();state.dirty=true;
- showM3Progress('idle','Solver mode changed. Press Run SPGA M3 to compute.');
- toast(state.m3Quality==='full'?'Full M3: all poses and up to 3000 iterations. Browser execution can be slow.':'Fast M3 Preview: sampled poses solved by real M3; others interpolated for visualization.');
+ showM3Progress('idle','Solver mode changed. Press Warp with SPGA to compute.');
+ toast(state.m3Quality==='full'?'Full Solve: every pose, up to 3,000 iterations. Browser execution can be slow.':'Fast Preview: the original solver runs for up to 20 iterations. The default example is recorded for instant playback.');
 });
 $('btnWarp').addEventListener('click',()=>warp());
+$('btnQuickDemo').addEventListener('click',async()=>{
+  // Reset is deliberate: the record is valid only for the published preset.
+  $('btnReset').click();
+  generateTilted(false);
+  await warp(true);
+});
 $('btnCancelM3').addEventListener('click',stopM3);
 $('frameSlider').addEventListener('input',e=>{state.pose=Number(e.target.value);state.selectedManually=true;updateFrame();state.dirty=true;});
 $('btnPlay').addEventListener('click',()=>{if(!state.tilted.length){toast('Generate Tilted first.');return;}state.playing=!state.playing;state.playClock=performance.now();$('btnPlay').textContent=state.playing?'❚❚':'▶';});
@@ -600,13 +606,13 @@ $('btnDrawApply').addEventListener('click',()=>{
  }catch(err){$('drawStatus').textContent=err.message;}
 });
 function exportProject(){
- const data={format:'SPGA-Real-M3-v1',notice:'Original research M3 solver via Python; no safety guarantee.',units:'1 display unit = 0.05 m for M3 solve',surface:state.surface,guideStroke:state.stroke,guide:state.guide.points.map(c=>c.point),nominal:state.nominal,brushControls:{handles:state.editHandles,tension:state.brushTension},nominalSkillName:state.skillName,taskMode:state.taskMode,repeats:state.repeats,contactMask:state.tilted.map(p=>p.contact),cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,angleFromSurfaceDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},m3Balance:{geometryGain:state.geometryGain,conicGain:state.conicGain,ribbonTensionGain:state.tensionGain,ribbonBendingGain:state.bendingGain},m3Diagnostics:state.lastM3Diagnostics,meshResolution:state.lastM3Diagnostics?.meshResolution??null,tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
+ const data={format:'SPGA-Research-v1',notice:'Original Python SPGA solver; no safety guarantee.',units:'1 display unit = 0.05 m for SPGA computation',surface:state.surface,guideStroke:state.stroke,guide:state.guide.points.map(c=>c.point),nominal:state.nominal,brushControls:{handles:state.editHandles,tension:state.brushTension},nominalSkillName:state.skillName,taskMode:state.taskMode,repeats:state.repeats,contactMask:state.tilted.map(p=>p.contact),cut:{angleDeg:state.cutAngle,offset:state.cutOffset,amplitude:state.amplitude},tool:{length:state.rodLength,angleFromSurfaceDeg:state.tiltAngle,coneHalfAngleDeg:state.coneAngle,reverse:state.reverse},m3Balance:{geometryGain:state.geometryGain,conicGain:state.conicGain,ribbonTensionGain:state.tensionGain,ribbonBendingGain:state.bendingGain},m3Diagnostics:state.lastM3Diagnostics,meshResolution:state.lastM3Diagnostics?.meshResolution??null,tilted:state.tilted.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),warped:state.warped.map(p=>({A0:p.a0,A1:p.a1,contact:p.contact,passId:p.passId})),metrics:{tilted:analyzePath(state.tilted,state.surface,state.rodLength),warped:analyzePath(state.warped,state.surface,state.rodLength)}};
  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='spga_interactive_demo.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);toast('Exported surface settings, trajectories and Tilted / Warped poses (JSON).');
 }
 $('btnExport').addEventListener('click',exportProject);
-$('btnReset').addEventListener('click',()=>{activeM3Request++;cancelM3();m3Running=false;cancelQueuedWarp();state.warpRequested=false;state.tilted=[];state.warped=[];Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),baseNominal:makeSkillExample('half'),nominal:makeSkillExample('half'),editHandles:[{v:0,w:0},{v:0,w:0},{v:0,w:0}],brushTension:.35,selected:null,selectedManually:false,showConic:true,skillName:'Half-circle',taskMode:'skill',repeats:3,a1Stroke:null,m3Quality:'preview',edit3D:false,cutAngle:0,cutOffset:0,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:40,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
- for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',0],['cutOffset',0],['strokeAmp',.7],['repeats',3],['rodLength',1.2],['tiltAngle',25],['coneAngle',40],['geometryGain',1],['conicGain',1],['tensionGain',.6],['bendingGain',.35],['brushTension',.35]])$(id).value=n;
- $('showConic').checked=true;$('focusPose').checked=true;state.focusPose=true;$('reverseTool').checked=false;$('m3Quality').value='preview';$('taskModes').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.task==='skill'));$('liftSkillControls').hidden=false;$('contactSkillControls').hidden=true;$('btnNominal3D').classList.remove('active');invalidate(true);updateEditorLock();setMode('orbit');updateUI();showM3Progress('idle','Reset complete. Generate Tilted to begin.');toast('Restored the default Hill scene. Editing stays live, even after generating trajectories.');});
+$('btnReset').addEventListener('click',()=>{activeM3Request++;cancelM3();m3Running=false;cancelQueuedWarp();state.warpRequested=false;state.tilted=[];state.warped=[];Object.assign(state.surface,{type:'hill',profile:defaultProfile,offsetX:0,offsetZ:0,offsetY:0,rotation:0,scale:1});Object.assign(state,{stroke:Array.from({length:70},(_,i)=>({x:i/69,y:.5})),baseNominal:makeSkillExample('half'),nominal:makeSkillExample('half'),editHandles:[{v:0,w:0},{v:0,w:0},{v:0,w:0}],brushTension:.35,selected:null,selectedManually:false,showConic:true,skillName:'Half-circle',taskMode:'contact',repeats:3,a1Stroke:null,m3Quality:'preview',edit3D:false,cutAngle:60,cutOffset:.5,amplitude:.7,rodLength:1.2,tiltAngle:25,coneAngle:30,reverse:false,geometryGain:1,conicGain:1,tensionGain:.6,bendingGain:.35,cam:{az:.70,el:.57,distance:14.8,target:V(0,.7,0)}});
+ for(const [id,n] of [['surfaceX',0],['surfaceZ',0],['surfaceRot',0],['surfaceScale',1],['cutAngle',60],['cutOffset',.5],['strokeAmp',.7],['repeats',3],['rodLength',1.2],['tiltAngle',25],['coneAngle',30],['geometryGain',1],['conicGain',1],['tensionGain',.6],['bendingGain',.35],['brushTension',.35]])$(id).value=n;
+ $('showConic').checked=true;$('focusPose').checked=true;state.focusPose=true;$('reverseTool').checked=false;$('m3Quality').value='preview';$('taskModes').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.task==='contact'));$('liftSkillControls').hidden=true;$('contactSkillControls').hidden=false;$('btnNominal3D').classList.remove('active');invalidate(true);updateEditorLock();setMode('orbit');updateUI();showM3Progress('idle','Reset complete. Generate Tilted to begin.');toast('Restored the default Hill scene. Editing stays live, even after generating trajectories.');});
 
 // Non-blocking onboarding: highlights workflow controls while keeping the scene interactive.
 const tutorialSteps=[
@@ -614,7 +620,7 @@ const tutorialSteps=[
  {target:'tutorialGuide',title:'2 · Choose a Guide curve',text:'The yellow Guide is a placement path on the surface. Adjust Cut angle and Plane offset, then click Select cut guide. Draw guide A0 lets you sketch an alternative surface-following guide.',tip:'The Guide is NOT the Nominal Skill: it tells SPGA where to place that skill.'},
  {target:'tutorialNominal',title:'3 · Draw your Nominal Skill',text:'Choose Lifted skill and draw A0, use a Half-circle / 3D spiral preset, or import a CSV. START and END are contact anchors; intermediate points can lift. Click 3D edit to drag the three smooth-curve control points.',tip:'For full contact, choose All-contact. A0 follows Guide and you can sketch the A1 orientation.'},
  {target:'btnTilted',title:'4 · Generate Tilted',text:'Choose Tool length and Tool angle vs surface in the Tool & Warping card, then click Generate Tilted. The nominal shape is placed along the Guide without warping its interior points onto the surface.',tip:'0° points forward along the surface tangent, 90° points along the outward normal, and 180° points backward. Tool settings remain live.'},
- {target:'btnWarp',title:'5 · Apply Warp',text:'Click Warp to run the real Python M3 force balance with cone and ribbon terms (runs locally in your browser; Full mode may be slow).',tip:'Some Tilted poses may penetrate the surface; Warp tries to reduce those penetrations while keeping contact anchors and tool length fixed.'},
+ {target:'btnWarp',title:'5 · Apply Warp',text:'Click Warp to run the original Python SPGA solver. The default Hill example loads instantly from a recorded 20-iteration result; other scenes are recomputed.',tip:'Some Tilted poses may penetrate the surface; Warp tries to reduce those penetrations while keeping contact anchors and tool length fixed.'},
  {target:'tutorialPlayback',title:'6 · Inspect a pose and its cone',text:'Use Play or drag the pose slider, or click a rod in the scene. Enable Show selected conic to visualize the selected pose’s feasible cone. Compare the orange Tilted rod with the cyan Warped rod.',tip:'Use Focus one pose when other tool instances make the cone hard to see.'},
  {target:'tutorialBalance',title:'7 · Explore the force balance',text:'Change Geometry, Cone half-angle, Conic restoring, Ribbon tension and Ribbon bending. Once Warp is generated, the Python backend recomputes it when you move the sliders.',tip:'Watch the large cone: higher Fᶜ lengthens the arrow toward its axis; β widens its range. The semicircle flattens with more ribbon tension. These are schematic visual cues, not measured forces or literal path deformation.'},
 ];
@@ -670,5 +676,5 @@ window.addEventListener('resize',()=>{if(tutorialIndex>=0)requestAnimationFrame(
 // Reposition when user scrolls either panel, without disabling editing.
 document.querySelectorAll('.sidebar').forEach(panel=>panel.addEventListener('scroll',()=>{if(tutorialIndex>=0)requestAnimationFrame(placeTutorialCoach);},{passive:true}));
 // Start with ready-to-use Hill + Guide, continuously editable even after generation.
-state.mesh=getMesh(state.surface,41);updateGuide();updateEditorLock();updateUI();resize();requestAnimationFrame(loop);
+state.mesh=getMesh(state.surface,41);updateGuide();generateTilted(false);updateEditorLock();updateUI();resize();showM3Progress('idle','Default Hill / All-contact example ready. Click Warp to see the recorded research result instantly.');requestAnimationFrame(loop);
 window.__spga={state,generateTilted,warp,stopM3,analyzePath,exportProject,updateGuide,refreshPreview,projectPose:p=>proj(p,makeCamera()),getHandles,rebuildAll,scheduleLiveWarp};
