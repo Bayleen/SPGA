@@ -1,0 +1,33 @@
+name: Verify real M3 website
+on:
+  push:
+    branches: [main, feature/real-spga-m3-method]
+  pull_request:
+jobs:
+  native-m3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r backend/requirements.txt pytest httpx
+      - run: cd backend && PYTHONPATH=. python -m pytest -q tests/
+      - run: node --test tests/geometry.test.mjs
+  browser-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser-pyodide-smoke.mjs

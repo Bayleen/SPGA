@@ -1,0 +1,215 @@
+{
+  "milestone": {
+    "name": "SPGA-M3 experimental multi-normal 3D soft field",
+    "status": "experimental; M2 source archived unchanged",
+    "base": "SPGA-M2 Fixed Active Contact Force Balance"
+  },
+  "scene": {
+    "background_rgb": [
+      0.96,
+      0.97,
+      0.99
+    ],
+    "surface_rgba": [
+      0.78,
+      0.75,
+      0.6,
+      1.0
+    ]
+  },
+  "surface": {
+    "curve_type": "bunny_path",
+    "bunny": {
+      "asset_obj": "assets/Bunny.obj",
+      "scale": 3.0,
+      "patch_center_x_m": 0.0,
+      "patch_z_min_m": 0.08,
+      "patch_width_x_m": 0.18,
+      "patch_height_z_m": 0.17,
+      "front_sign": 1.0,
+      "chart_grid_nx": 41,
+      "chart_grid_nz": 61,
+      "work_region": "left_ear_head_back_down",
+      "full_query_k": 24,
+      "path_physical_width_m": 0.008,
+      "route_side": "back",
+      "route_xz_m": [
+        [
+          -0.144,
+          0.38
+        ],
+        [
+          -0.148,
+          0.354
+        ],
+        [
+          -0.132,
+          0.324
+        ],
+        [
+          -0.106,
+          0.296
+        ],
+        [
+          -0.068,
+          0.272
+        ],
+        [
+          -0.02,
+          0.248
+        ],
+        [
+          0.032,
+          0.22
+        ],
+        [
+          0.082,
+          0.184
+        ],
+        [
+          0.122,
+          0.146
+        ],
+        [
+          0.146,
+          0.108
+        ]
+      ],
+      "route_samples": 320,
+      "normal_smooth_iterations": 6,
+      "tangent_smooth_iterations": 5
+    },
+    "continuous_normal_field": {
+      "enabled": true,
+      "type": "barycentric_vertex_normal_extension",
+      "notes": "No extra width/gain; preserves M1 distance and magnitude."
+    }
+  },
+  "nominal": {
+    "source": "palpation_half_circle",
+    "tool_axis_length_m": 0.18,
+    "attack_angle_deg": 30.0,
+    "attack_tangent_sign": -1.0,
+    "num_cycles": 10,
+    "samples_per_cycle": 25,
+    "foot_span_m": 0.05,
+    "brush_samples": 101
+  },
+  "palpation_tilt": {
+    "guide_samples": 3000,
+    "guide_x_m": 0.0,
+    "guide_start_offset_m": 0.0,
+    "guide_period_arc_m": 0.05,
+    "max_uniform_scale_difference": 0.05,
+    "max_arc_search_factor": 1.35,
+    "inter_primitive_gap_m": 0.002
+  },
+  "brush_tilt": {
+    "guide_x_m": 0.0,
+    "guide_start_s_m": 0.0,
+    "guide_end_s_m": null
+  },
+  "spiral": {
+    "turns": 1.5,
+    "radius_fraction": 0.3,
+    "phase_deg": 0.0
+  },
+  "guard": {
+    "sigma_n_m": 0.03,
+    "normal_gate_width_m": 0.01
+  },
+  "conic": {
+    "half_angle_deg": 15.0,
+    "epsilon_c": 0.035,
+    "k_in": 0.1,
+    "k_out": 1.5,
+    "reference_mode": "from_tilted_pose"
+  },
+  "solver": {
+    "dtau": 0.004,
+    "max_iterations": 3000,
+    "force_residual_tolerance": 0.00075,
+    "minimum_iterations": 20,
+    "oscillatory_balance": {
+      "enabled": true,
+      "window_iterations": 60,
+      "minimum_iterations": 200,
+      "average_force_tolerance": 0.003,
+      "state_drift_tolerance_m": 0.0005,
+      "state_span_tolerance_m": 0.001
+    }
+  },
+  "viewer": {
+    "camera_distance_m": 1.06,
+    "camera_yaw_deg": 35,
+    "camera_pitch_deg": -12,
+    "camera_target": [
+      -0.005,
+      0.0,
+      0.25
+    ],
+    "playback_dt_s": 0.018,
+    "pose_markers": 18,
+    "cone_markers": 6,
+    "cone_visual_length_m": 0.045,
+    "cone_boundary_rays": 16,
+    "cone_rgba": [
+      0.92,
+      0.42,
+      0.02,
+      0.38
+    ],
+    "show_surface_normals": true,
+    "surface_normals_count": 24,
+    "surface_normals_length_m": 0.018,
+    "surface_normals_rgb": [
+      0.74,
+      0.79,
+      0.84
+    ],
+    "show_dual_arc_ribbon": true
+  },
+  "geometry_field": {
+    "soft_margin_m": 0.005,
+    "influence_distance_m": 0.025,
+    "clearance_gain": 0.12,
+    "penetration_gain": 0.55,
+    "sigma_n_m": 0.03,
+    "normal_gate_width_m": 0.01,
+    "barrier_distance_m": 0.002,
+    "barrier_gain": 0.014,
+    "barrier_cap": 0.35,
+    "crossbar_samples": 21,
+    "active_contact_max_spacing_m": 0.01,
+    "active_contact_distance_m": 0.05,
+    "multi_normal": {
+      "enabled": true,
+      "safety_distance_m": 0.02,
+      "surface_tolerance_m": 0.001,
+      "safety_decay_m": 0.009,
+      "penetration_decay_m": 0.001,
+      "safety_gain": 0.065,
+      "penetration_gain": 0.32,
+      "smooth_force_cap": 3.0,
+      "lateral_sigma_m": 0.012,
+      "lateral_cutoff_sigmas": 4.0,
+      "outward_reach_m": 0.075,
+      "inward_reach_m": 0.06,
+      "visibility_enabled": true,
+      "visibility_soft_length_m": 0.001
+    }
+  },
+  "mobility": {
+    "contact_exclusion_radius_m": 0.0,
+    "contact_transition_radius_m": 0.01
+  },
+  "ribbon": {
+    "model": "dual_arc_elastic_ribbon",
+    "tension_gain": 10.0,
+    "bending_gain": 8.0,
+    "arc0_weight": 1.0,
+    "arc1_weight": 1.0,
+    "cone_gain_A0": 0.0,
+    "cone_gain_A1": 1.0
+  }
+}
