@@ -25,7 +25,7 @@ async function init(id){
   // __init__.py is a standard package marker; create it inside Pyodide.
   py.FS.writeFile('/home/pyodide/backend/spga/__init__.py', '');
   for(const [path,value] of loaded)py.FS.writeFile('/home/pyodide/backend/'+path,value);
-  tell(id,'Initializing original M3 modules…','sources');
+  tell(id,'Initializing original SPGA modules…','sources');
   // Make the research Numba decorators transparent in Pyodide. This executes
   // the exact same research BVH ray-intersection function, without JIT.
   py.runPython("import sys,types; stub=types.ModuleType('numba'); stub.njit=lambda *a,**kw: lambda f:f; sys.modules['numba']=stub; sys.path.insert(0,'/home/pyodide/backend'); import browser_bridge");
@@ -39,7 +39,7 @@ self.onmessage=async ev=>{
     const py=await(runtime??=init(id));
     tell(id,'Computing SPGA force balance: '+payload.poses.length+' poses (up to '+payload.maxIterations+' iterations)…','solving',0,payload.maxIterations);
     py.globals.set('_spga_payload',JSON.stringify(payload));
-    // Progress is counted from real calls inside the original M3 solver.
+    // Progress is counted from real calls inside the original SPGA solver.
     // This does not change geometry, forces, constraints or convergence.
     py.globals.set('_spga_progress_js',(iteration,maxIterations)=>{
       tell(id,'SPGA force balance · iteration '+iteration+' / '+maxIterations+' maximum','solving',iteration,maxIterations);
