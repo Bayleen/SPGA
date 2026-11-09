@@ -4,7 +4,7 @@ import {SPGA_M3_BACKEND_URL} from './m3-config.js';
 // Default: run the ORIGINAL Python M3 method in a browser Web Worker.
 // Optionally configure an HTTPS Python API for high-throughput full research runs.
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let active=null,serial=0;
+let active=null,cachedWorker=null,serial=0;
 
 function chooseIndices(poses,limit){
   if(poses.length<=limit)return poses.map((_,i)=>i);
@@ -72,8 +72,9 @@ async function viaServer(base,payload,onStatus,isStale){
 
 function viaBrowser(payload,onStatus,isStale){
   const id=++serial;
-  if(active){active.worker.terminate();active.done(null);active=null;}
-  const worker=new Worker(new URL('./m3-browser-worker.js',import.meta.url));
+  if(active){active.worker.terminate();active.done(null);active=null;cachedWorker=null;}
+  const worker=cachedWorker??new Worker(new URL('./m3-browser-worker.js',import.meta.url));
+  cachedWorker=worker;
   return new Promise((resolve,reject)=>{
     let finished=false;
     const finish=(fn,value)=>{
@@ -87,11 +88,11 @@ function viaBrowser(payload,onStatus,isStale){
     worker.onmessage=ev=>{
       if(ev.data.id!==id)return;
       if(ev.data.type==='progress')onStatus(ev.data.message);
-      if(ev.data.type==='result'){worker.terminate();finish(resolve,ev.data.result);}
-      if(ev.data.type==='error'){worker.terminate();finish(reject,Error(ev.data.message));}
+      if(ev.data.type==='result'){finish(resolve,ev.data.result);}
+      if(ev.data.type==='error'){worker.terminate();cachedWorker=null;finish(reject,Error(ev.data.message));}
     };
-    worker.onerror=ev=>{worker.terminate();finish(reject,Error(ev.message||'Python worker failed'));};
-    const timer=setInterval(()=>{if(isStale()){worker.terminate();finish(resolve,null);}},250);
+    worker.onerror=ev=>{worker.terminate();cachedWorker=null;finish(reject,Error(ev.message||'Python worker failed'));};
+    const timer=setInterval(()=>{if(isStale()){worker.terminate();cachedWorker=null;finish(resolve,null);}},250);
     worker.postMessage({id,payload});
   });
 }
