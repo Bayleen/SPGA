@@ -162,7 +162,7 @@ def solve(req: WarpRequest) -> dict:
         }
     }
 
-def solve_json(payload):
+def solve_json(payload, progress=None):
     """JSON bridge, preserving the HTTP M3 API's request/response contract."""
     src=json.loads(payload)
     v=lambda p: SimpleNamespace(x=p['x'], y=p['y'], z=p['z'])
@@ -176,7 +176,29 @@ def solve_json(payload):
         coneAngle=float(src['coneAngle']),
         gains=SimpleNamespace(**src['gains']),
         maxIterations=int(src.get('maxIterations',3000)))
-    out=solve(req)
+    if progress is None:
+        out=solve(req)
+    else:
+        # Observe the original force-balance iteration without editing the
+        # research solver. Its crossbar active-contact call runs once per step.
+        from spga import warping
+        original_force=warping.crossbar_active_contact_force
+        calls=0
+        stride=max(1,req.maxIterations//60)
+        def traced_force(*args,**kwargs):
+            nonlocal calls
+            calls+=1
+            if calls==1 or calls%stride==0:
+                try:
+                    progress(min(calls,req.maxIterations),req.maxIterations)
+                except Exception:
+                    pass  # Telemetry must not change the research result.
+            return original_force(*args,**kwargs)
+        warping.crossbar_active_contact_force=traced_force
+        try:
+            out=solve(req)
+        finally:
+            warping.crossbar_active_contact_force=original_force
     def finite(x):
         if isinstance(x,float) and not math.isfinite(x):return None
         if isinstance(x,dict):return {k:finite(v) for k,v in x.items()}
