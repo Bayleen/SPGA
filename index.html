@@ -68,7 +68,16 @@
  </select>
 </label>
 <p class="helper">Both modes execute original Python M3. Fast Preview solves ~18 poses, then interpolates remaining poses for display (not scientific results). Full runs every pose; without an accelerated server it can take a long time.</p>
-<div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Run SPGA M3 ✦</button></div>
+<div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent" title="Runs or restarts real M3. Never locked during computation.">2. Run SPGA M3 ✦</button></div>
+<div class="m3-progress-card" id="m3ProgressPanel" role="status" aria-live="polite" aria-atomic="false">
+  <div class="m3-progress-heading"><strong id="m3ProgressTitle">M3 ready</strong><span id="m3ProgressElapsed">0s</span></div>
+  <p id="m3ProgressDetail">Generate Tilted, then run the original Python M3 solver.</p>
+  <div id="m3ProgressTrack" class="m3-progress-track" role="progressbar" aria-label="M3 execution stage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div id="m3ProgressFill" class="m3-progress-fill"></div>
+  </div>
+  <div class="m3-progress-bottom"><span id="m3ProgressMeta">Waiting for Tilted</span><button type="button" id="btnCancelM3" class="m3-cancel" hidden>✕ Cancel M3</button></div>
+  <p class="m3-progress-note">Progress shows actual loading stages and M3 iterations / maximum budget, not an estimated finish time.</p>
+</div>
   </section>
  </aside>
  <section class="center">
