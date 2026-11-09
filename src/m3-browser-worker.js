@@ -3,7 +3,7 @@
  * research code automatically chooses its NumPy-based visibility fallback.
  */
 const ROOT='https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
-const MODULES=['__init__.py','conic.py','dual_arc.py','geometry.py','geometry_field.py','mobility.py','multi_normal_field.py','ribbon_energy.py','surface.py','warping.py'];
+const MODULES=['conic.py','dual_arc.py','geometry.py','geometry_field.py','mobility.py','multi_normal_field.py','ribbon_energy.py','surface.py','warping.py'];
 let runtime;
 const tell=(id,message)=>self.postMessage({id,type:'progress',message});
 async function init(id){
@@ -20,6 +20,9 @@ async function init(id){
   }));
   py.FS.mkdirTree('/home/pyodide/backend/spga');
   py.FS.mkdirTree('/home/pyodide/backend/configs');
+  // GitHub Pages/Jekyll may omit underscore-prefixed Python files.
+  // __init__.py is a standard package marker; create it inside Pyodide.
+  py.FS.writeFile('/home/pyodide/backend/spga/__init__.py', '');
   for(const [path,value] of loaded)py.FS.writeFile('/home/pyodide/backend/'+path,value);
   // Make the research Numba decorators transparent in Pyodide. This executes
   // the exact same research BVH ray-intersection function, without JIT.
