@@ -17,7 +17,9 @@ let m3Running=false,m3StartedAt=0,m3Ticker=null;
 function m3Clock(){ $('m3ProgressElapsed').textContent=m3StartedAt?Math.floor((performance.now()-m3StartedAt)/1000)+'s':'0s'; }
 function showM3Progress(phase,message='',info={}){
  const active=['queued','preparing','runtime','packages','sources','solving','rendering'].includes(phase);
- if(active&&!m3StartedAt)m3StartedAt=performance.now();
+ if(phase==='idle')m3StartedAt=0;
+ else if(phase==='queued')m3StartedAt=performance.now();
+ else if(active&&!m3StartedAt)m3StartedAt=performance.now();
  if(active&&!m3Ticker)m3Ticker=setInterval(m3Clock,1000);
  if(!active&&m3Ticker){clearInterval(m3Ticker);m3Ticker=null;}
  m3Clock();
@@ -38,7 +40,6 @@ function showM3Progress(phase,message='',info={}){
  $('btnWarp').disabled=false; // Never leave an unusable gray button after stale async jobs.
  $('btnWarp').textContent=active?'↻ Restart SPGA M3':'2. Run SPGA M3 ✦';
  $('btnCancelM3').hidden=!active;
- if(phase==='idle')m3StartedAt=0;
 }
 // Editable at every stage. Geometry changes keep the generated results alive.
 // Tilted is rebuilt synchronously, while the more expensive Warp is debounced.
