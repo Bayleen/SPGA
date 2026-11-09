@@ -21,7 +21,9 @@ async function init(id){
   py.FS.mkdirTree('/home/pyodide/backend/spga');
   py.FS.mkdirTree('/home/pyodide/backend/configs');
   for(const [path,value] of loaded)py.FS.writeFile('/home/pyodide/backend/'+path,value);
-  py.runPython("import sys; sys.path.insert(0,'/home/pyodide/backend'); import browser_bridge");
+  // Make the research Numba decorators transparent in Pyodide. This executes
+  // the exact same research BVH ray-intersection function, without JIT.
+  py.runPython("import sys,types; stub=types.ModuleType('numba'); stub.njit=lambda *a,**kw: lambda f:f; sys.modules['numba']=stub; sys.path.insert(0,'/home/pyodide/backend'); import browser_bridge");
   tell(id,'SPGA-M3 Python ready.');
   return py;
 }
