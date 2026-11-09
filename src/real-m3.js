@@ -6,6 +6,16 @@ import {SPGA_M3_BACKEND_URL} from './m3-config.js';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let active=null,cachedWorker=null,serial=0;
 
+// Cancel immediately, including a CPU-bound Pyodide solve.
+export function cancelM3(){
+  if(!active)return;
+  const pending=active;
+  active=null;
+  cachedWorker=null;
+  pending.worker.terminate();
+  pending.done(null);
+}
+
 function chooseIndices(poses,limit){
   if(poses.length<=limit)return poses.map((_,i)=>i);
   const selected=new Set([0,poses.length-1]);
@@ -65,14 +75,14 @@ async function viaServer(base,payload,onStatus,isStale){
     if(!r.ok)throw Error(response.detail||'Server query error: '+r.status);
     if(response.status==='complete')return response.result;
     if(response.status==='error')throw Error(response.error||'M3 solver error');
-    if(poll%5===0)onStatus('Computing original Python M3 force balance on server…');
+    if(poll%5===0)onStatus('Computing original Python M3 force balance on server…',{phase:'solving'});
   }
   throw Error('Server polling timed out');
 }
 
 function viaBrowser(payload,onStatus,isStale){
   const id=++serial;
-  if(active){active.worker.terminate();active.done(null);active=null;cachedWorker=null;}
+  cancelM3();
   const worker=cachedWorker??new Worker(new URL('./m3-browser-worker.js',import.meta.url));
   cachedWorker=worker;
   return new Promise((resolve,reject)=>{
@@ -87,7 +97,7 @@ function viaBrowser(payload,onStatus,isStale){
     active={id,worker,done:v=>finish(resolve,v)};
     worker.onmessage=ev=>{
       if(ev.data.id!==id)return;
-      if(ev.data.type==='progress')onStatus(ev.data.message);
+      if(ev.data.type==='progress')onStatus(ev.data.message,ev.data);
       if(ev.data.type==='result'){finish(resolve,ev.data.result);}
       if(ev.data.type==='error'){worker.terminate();cachedWorker=null;finish(reject,Error(ev.data.message));}
     };
@@ -100,10 +110,11 @@ function viaBrowser(payload,onStatus,isStale){
 export async function computeM3(state,onStatus=()=>{},isStale=()=>false){
   const {payload,ids,full,resolution}=sceneRequest(state);
   const base=SPGA_M3_BACKEND_URL.trim().replace(/\/$/,'');
-  onStatus((full?'FULL':'FAST PREVIEW')+': original SPGA-M3 on '+ids.length+'/'+state.tilted.length+' poses; '+payload.maxIterations+' max iterations.');
+  onStatus((full?'FULL':'FAST PREVIEW')+': original SPGA-M3 on '+ids.length+'/'+state.tilted.length+' poses; '+payload.maxIterations+' max iterations.',{phase:'preparing'});
   const solved=base?await viaServer(base,payload,onStatus,isStale):await viaBrowser(payload,onStatus,isStale);
   if(!solved||isStale())return null;
   if(!Array.isArray(solved.warped)||solved.warped.length!==ids.length)throw Error('Incorrect M3 pose count');
+  onStatus('Preparing 3D scene and M3 diagnostics…',{phase:'rendering'});
   const previewInterpolated=!full&&ids.length<state.tilted.length;
   return {
     ...solved,
