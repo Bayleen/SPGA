@@ -1,4 +1,4 @@
-/* Run original research SPGA M3 solver in the browser. No Python server required.
+/* Run original research SPGA solver in the browser. No Python server required.
  * NumPy and SciPy run in WebAssembly. When Numba is absent, the original
  * research code automatically chooses its NumPy-based visibility fallback.
  */
@@ -12,7 +12,7 @@ async function init(id){
   const py=await loadPyodide({indexURL:ROOT});
   tell(id,'Loading NumPy and SciPy…','packages');
   await py.loadPackage(['numpy','scipy']);
-  tell(id,'Fetching original M3 Python modules and configuration…','sources');
+  tell(id,'Fetching SPGA Python modules and configuration…','sources');
   const names=[...MODULES.map(x=>'spga/'+x),'browser_bridge.py','configs/milestone_m3.json'];
   const loaded=await Promise.all(names.map(async name=>{
     const r=await fetch(new URL('../backend/'+name,self.location.href));
@@ -29,7 +29,7 @@ async function init(id){
   // Make the research Numba decorators transparent in Pyodide. This executes
   // the exact same research BVH ray-intersection function, without JIT.
   py.runPython("import sys,types; stub=types.ModuleType('numba'); stub.njit=lambda *a,**kw: lambda f:f; sys.modules['numba']=stub; sys.path.insert(0,'/home/pyodide/backend'); import browser_bridge");
-  tell(id,'SPGA-M3 Python ready.','sources');
+  tell(id,'SPGA Python ready.','sources');
   return py;
 }
 self.onmessage=async ev=>{
@@ -37,12 +37,12 @@ self.onmessage=async ev=>{
   if(!id||!payload)return;
   try{
     const py=await(runtime??=init(id));
-    tell(id,'Computing M3 force balance: '+payload.poses.length+' poses (up to '+payload.maxIterations+' iterations)…','solving',0,payload.maxIterations);
+    tell(id,'Computing SPGA force balance: '+payload.poses.length+' poses (up to '+payload.maxIterations+' iterations)…','solving',0,payload.maxIterations);
     py.globals.set('_spga_payload',JSON.stringify(payload));
     // Progress is counted from real calls inside the original M3 solver.
     // This does not change geometry, forces, constraints or convergence.
     py.globals.set('_spga_progress_js',(iteration,maxIterations)=>{
-      tell(id,'M3 force balance · iteration '+iteration+' / '+maxIterations+' maximum','solving',iteration,maxIterations);
+      tell(id,'SPGA force balance · iteration '+iteration+' / '+maxIterations+' maximum','solving',iteration,maxIterations);
     });
     let raw;
     try{
@@ -51,7 +51,7 @@ self.onmessage=async ev=>{
       py.globals.delete('_spga_payload');
       py.globals.delete('_spga_progress_js');
     }
-    tell(id,'M3 solved; returning warped poses and diagnostics…','rendering');
+    tell(id,'SPGA solved; returning warped poses and diagnostics…','rendering');
     self.postMessage({id,type:'result',result:JSON.parse(raw)});
   }catch(error){self.postMessage({id,type:'error',message:error?.message||String(error)});}
 };
