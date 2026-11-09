@@ -470,12 +470,14 @@ $('m3Quality').addEventListener('change',e=>{
  toast(state.m3Quality==='full'?'Full Solve: every pose, up to 3,000 iterations. Browser execution can be slow.':'Fast Preview: the original solver runs for up to 20 iterations. The default example is recorded for instant playback.');
 });
 $('btnWarp').addEventListener('click',()=>warp());
-$('btnQuickDemo').addEventListener('click',async()=>{
+async function showInstantExample(){
   // Reset is deliberate: the record is valid only for the published preset.
   $('btnReset').click();
   generateTilted(false);
   await warp(true);
-});
+}
+$('btnQuickDemo').addEventListener('click',showInstantExample);
+$('btnQuickDemoTop').addEventListener('click',showInstantExample);
 $('btnCancelM3').addEventListener('click',stopM3);
 $('frameSlider').addEventListener('input',e=>{state.pose=Number(e.target.value);state.selectedManually=true;updateFrame();state.dirty=true;});
 $('btnPlay').addEventListener('click',()=>{if(!state.tilted.length){toast('Generate Tilted first.');return;}state.playing=!state.playing;state.playClock=performance.now();$('btnPlay').textContent=state.playing?'❚❚':'▶';});
