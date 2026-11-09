@@ -1,5 +1,6 @@
 import {getMesh,add,sub,mul,norm,mix,clamp} from './geometry.js';
 import {SPGA_M3_BACKEND_URL} from './m3-config.js';
+import {getDefaultRecordedPreview} from './spga-preset-cache.js';
 
 // Default: run the ORIGINAL Python M3 method in a browser Web Worker.
 // Optionally configure an HTTPS Python API for high-throughput full research runs.
@@ -75,7 +76,7 @@ async function viaServer(base,payload,onStatus,isStale){
     if(!r.ok)throw Error(response.detail||'Server query error: '+r.status);
     if(response.status==='complete')return response.result;
     if(response.status==='error')throw Error(response.error||'M3 solver error');
-    if(poll%5===0)onStatus('Computing original Python M3 force balance on server…',{phase:'solving'});
+    if(poll%5===0)onStatus('Computing original Python SPGA force balance on server…',{phase:'solving'});
   }
   throw Error('Server polling timed out');
 }
@@ -109,8 +110,17 @@ function viaBrowser(payload,onStatus,isStale){
 
 export async function computeM3(state,onStatus=()=>{},isStale=()=>false){
   const {payload,ids,full,resolution}=sceneRequest(state);
+  // The exact public Hill / all-contact example was solved by the original
+  // Python force-balance method in advance. Never treat other configurations
+  // as cached. No approximate/animated substitute is returned.
+  const recorded=getDefaultRecordedPreview(state,payload,ids,full);
+  if(recorded){
+    onStatus('Loading recorded SPGA result: 81 poses solved by the original Python method (20 iterations).',
+      {phase:'rendering'});
+    return recorded;
+  }
   const base=SPGA_M3_BACKEND_URL.trim().replace(/\/$/,'');
-  onStatus((full?'FULL':'FAST PREVIEW')+': original SPGA-M3 on '+ids.length+'/'+state.tilted.length+' poses; '+payload.maxIterations+' max iterations.',{phase:'preparing'});
+  onStatus((full?'FULL':'FAST PREVIEW')+': original SPGA on '+ids.length+'/'+state.tilted.length+' poses; '+payload.maxIterations+' max iterations.',{phase:'preparing'});
   const solved=base?await viaServer(base,payload,onStatus,isStale):await viaBrowser(payload,onStatus,isStale);
   if(!solved||isStale())return null;
   if(!Array.isArray(solved.warped)||solved.warped.length!==ids.length)throw Error('Incorrect M3 pose count');
