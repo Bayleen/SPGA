@@ -75,3 +75,13 @@ input:disabled{opacity:.52;cursor:not-allowed}
 .m3-progress-card[data-stage="error"]{border-color:#b65a65}.m3-progress-card[data-stage="done"]{border-color:#378b77}
 #btnWarp{opacity:1!important;pointer-events:auto!important;cursor:pointer!important}
 @media(prefers-reduced-motion:reduce){.m3-progress-fill.solving{animation:none}}
+
+/* Public-facing, one-click research example (recorded authentic Python solve). */
+.quick-example{display:block;width:100%;padding:13px 12px;margin:4px 0 8px;
+  border:1px solid #67d9c7;border-radius:9px;
+  color:#09212a;background:linear-gradient(115deg,#67ded8,#a6f0d2);
+  font-size:12px;font-weight:900;letter-spacing:.12px;
+  box-shadow:0 3px 16px #28cdbb2b}
+.quick-example:hover{background:linear-gradient(115deg,#85f0e3,#c0fae7);
+  border-color:#befce9;transform:translateY(-1px)}
+.quick-note{margin:0 0 12px!important;color:#9fcfc6!important}
