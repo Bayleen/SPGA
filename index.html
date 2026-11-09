@@ -61,7 +61,14 @@
     
     <p class="helper">0° = forward along the surface tangent; 90° = outward surface normal; 180° = backward along the tangent. Angle is measured relative to the surface, not the normal.</p>
     <label class="check" style="display:none"><input type="checkbox" id="reverseTool"/> Reverse tool direction</label>
-    <div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Warp ✦</button></div>
+    <label class="slider-row" style="display:block;margin-top:12px">M3 solver mode
+ <select id="m3Quality" style="width:100%;margin-top:6px;background:#121e2e;color:#e5f1fa;border:1px solid #34445b;border-radius:8px;padding:9px">
+  <option value="preview" selected>Fast M3 Preview — sampled poses, 20 iterations</option>
+  <option value="full">Full Research M3 — all poses, up to 3000 iterations</option>
+ </select>
+</label>
+<p class="helper">Both modes execute original Python M3. Fast Preview solves ~18 poses, then interpolates remaining poses for display (not scientific results). Full runs every pose; without an accelerated server it can take a long time.</p>
+<div class="grid2"><button id="btnTilted" class="action-primary">1. Generate Tilted</button><button id="btnWarp" class="action-primary accent">2. Run SPGA M3 ✦</button></div>
   </section>
  </aside>
  <section class="center">
@@ -76,7 +83,7 @@
       <div class="play-top"><span class="section-head">TRAJECTORY PLAYBACK</span><div class="play-legend"><span class="key-guide">●</span> Guide <span class="key-tilt">●</span> Tilted <span class="key-warp">●</span> Warped</div></div>
       <div class="play-main"><button id="btnPlay" class="play-btn" aria-label="Play animation">▶</button><input id="frameSlider" type="range" min="0" max="66" value="0" step="1"/><output id="frameVal">Pose 01 / 67</output><label class="check compact"><input type="checkbox" id="showBoth" checked/> Compare</label></div>
       <div class="pose-selection-bar"><label class="check compact"><input id="showConic" type="checkbox" checked/> ◎ Show selected conic</label><label class="check compact"><input id="focusPose" type="checkbox" checked/> Focus one pose</label><span>Click a pose / rod in 3D to inspect its cone · β = <b id="coneBadge">40°</b></span></div>
-      <div class="notice"><span class="notice-dot"></span><span><b>Original research M3.</b> Warp runs the Python SPGA-M3 force-balance solver via a separate HTTPS API. GitHub Pages hosts only the visualization. Without a configured running backend, Warp will display an error instead of simulated results.</span></div>
+      <div class="notice"><span class="notice-dot"></span><span><b>Original research SPGA M3 Python.</b> Runs directly inside GitHub Pages via WebAssembly: geometry field, visibility/BVH, conic, ribbon and fixed-length force balance. Fast Preview interpolates some display poses; switch to Full Research M3 for every pose. No server required.</span></div>
    </div>
  </section>
  <aside class="sidebar right">
